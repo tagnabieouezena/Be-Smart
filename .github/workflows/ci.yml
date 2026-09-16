@@ -63,6 +63,12 @@ jobs:
             -v ON_ERROR_STOP=1 \
             -f supabase/tests/parametrage_categories_objectifs.sql
 
+      - name: Test budget prévisionnel (adversarial, Module 4.3)
+        run: |
+          psql "$(supabase status -o env | grep DB_URL | cut -d '=' -f2- | tr -d '\"')" \
+            -v ON_ERROR_STOP=1 \
+            -f supabase/tests/budget_previsionnel.sql
+
       - name: Build Next.js
         env:
           NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321

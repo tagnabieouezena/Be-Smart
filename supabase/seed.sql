@@ -52,6 +52,21 @@ values
 insert into public.objectifs_ca (id, entreprise_id, type_periode, annee, mois, montant_cible)
 values ('a3000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'mensuel', 2026, 9, 1000000);
 
+-- Budget d'août (mois précédent) avec une charge fixe, pour tester la RPC
+-- de duplication vers le budget de septembre.
+insert into public.budgets_mensuels (id, entreprise_id, mois, annee, statut)
+values
+  ('a4000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 8, 2026, 'valide'),
+  ('a4000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 9, 2026, 'brouillon');
+
+insert into public.lignes_charge_prevue (id, budget_mensuel_id, entreprise_id, categorie_id, designation, montant, statut)
+values
+  ('a5000000-0000-0000-0000-000000000001', 'a4000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'a2000000-0000-0000-0000-000000000001', 'Loyer boutique', 150000, 'realise'),
+  ('a5000000-0000-0000-0000-000000000002', 'a4000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'a2000000-0000-0000-0000-000000000002', 'Fournitures diverses', 20000, 'a_faire');
+
+insert into public.lignes_revenu_prevu (id, budget_mensuel_id, entreprise_id, source, montant_estime, statut)
+values ('a6000000-0000-0000-0000-000000000001', 'a4000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'Ventes du mois', 800000, 'en_attente');
+
 -- =========================================================================
 -- Entreprise B — « Atelier Test SARL » (sert uniquement à prouver
 -- l'isolation : ne doit jamais être visible depuis l'entreprise A)
@@ -90,6 +105,12 @@ values ('b2000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-0000000
 
 insert into public.objectifs_ca (id, entreprise_id, type_periode, annee, mois, montant_cible)
 values ('b3000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', 'mensuel', 2026, 9, 400000);
+
+insert into public.budgets_mensuels (id, entreprise_id, mois, annee, statut)
+values ('b4000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', 9, 2026, 'brouillon');
+
+insert into public.lignes_charge_prevue (id, budget_mensuel_id, entreprise_id, categorie_id, designation, montant, statut)
+values ('b5000000-0000-0000-0000-000000000001', 'b4000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', 'b2000000-0000-0000-0000-000000000001', 'Bois et tissus', 60000, 'a_faire');
 
 -- =========================================================================
 -- Compte de supervision Be Smart (super-admin, claim app_metadata.super_admin)
