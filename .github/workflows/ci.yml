@@ -51,8 +51,49 @@ jobs:
             -v ON_ERROR_STOP=1 \
             -f supabase/tests/isolation_multi_tenant.sql
 
+      - name: Test bootstrap entreprise+CEO (adversarial, Module 4.1)
+        run: |
+          psql "$(supabase status -o env | grep DB_URL | cut -d '=' -f2- | tr -d '\"')" \
+            -v ON_ERROR_STOP=1 \
+            -f supabase/tests/bootstrap_entreprise_ceo.sql
+
       - name: Build Next.js
-        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+        run: |
+          export NEXT_PUBLIC_SUPABASE_ANON_KEY="$(supabase status -o env | grep '^ANON_KEY' | cut -d '=' -f2- | tr -d '\"')"
+          npm run build
+
+      - name: Test invitation comptable (adversarial, Module 4.1 — un comptable doit être rejeté 403)
+        run: |
+          export NEXT_PUBLIC_SUPABASE_URL="http://127.0.0.1:54321"
+          export NEXT_PUBLIC_SUPABASE_ANON_KEY="$(supabase status -o env | grep '^ANON_KEY' | cut -d '=' -f2- | tr -d '\"')"
+          export SUPABASE_SERVICE_ROLE_KEY="$(supabase status -o env | grep '^SERVICE_ROLE_KEY' | cut -d '=' -f2- | tr -d '\"')"
+
+          npx next start -p 3010 &
+          NEXT_PID=$!
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3010 >/dev/null && break
+            sleep 1
+          done
+
+          COMPTABLE_TOKEN=$(curl -s -X POST "$NEXT_PUBLIC_SUPABASE_URL/auth/v1/token?grant_type=password" \
+            -H "apikey: $NEXT_PUBLIC_SUPABASE_ANON_KEY" -H "Content-Type: application/json" \
+            -d '{"email":"comptable-a@test.besmart.local","password":"mot-de-passe-test"}' \
+            | jq -r '.access_token')
+
+          STATUS=$(curl -s -o /tmp/reponse.json -w "%{http_code}" -X POST http://localhost:3010/api/comptable/inviter \
+            -H "Authorization: Bearer $COMPTABLE_TOKEN" -H "Content-Type: application/json" \
+            -d '{"email":"intrus@test.besmart.local","nom":"Intrus"}')
+
+          cat /tmp/reponse.json
+          kill "$NEXT_PID"
+
+          if [ "$STATUS" != "403" ]; then
+            echo "ECHEC : attendu HTTP 403 pour un comptable appelant /api/comptable/inviter, reçu $STATUS"
+            exit 1
+          fi
+          echo "OK — un comptable est bien rejeté (403) par la route d'invitation"
 
       - name: Stop Supabase local
         if: always()
