@@ -10,9 +10,10 @@
 - [x] Job CI de test (typecheck, lint, build, `supabase start`/`db reset`, test d'isolation adversarial) — CI verte
 - [ ] Job CI de promotion vers prod (`supabase db push` sur merge `main`) — volontairement pas encore fait, à ajouter quand une première fonctionnalité réelle sera prête à être déployée
 
-## Phase 1 — Module 4.1 en cours
-- [ ] Module 4.1 — Authentification et gestion des comptes (CEO, comptable, super-admin Be Smart) — brief prêt, voir `docs/briefs/module-4.1-authentification.md`
-- [ ] Module 4.2 — Paramétrage (catégories, modes de paiement, objectifs CA, solde initial)
+## Phase 1 — Module 4.2 en cours
+- [x] Module 4.1 — Authentification et gestion des comptes (CEO, comptable, super-admin Be Smart) ✅ mergée dans `main` (PR #2, commit `6a0e26b`)
+  - Dette technique mineure, non bloquante, à traiter lors d'un prochain passage sur ce module : utilisateur Auth orphelin si l'insert `utilisateurs` échoue après un `inviteUserByEmail` réussi (pas de risque RLS, juste un résidu) ; champ `nom` du comptable invité non validé/assaini (sans conséquence tant qu'il n'est qu'affiché).
+- [ ] Module 4.2 — Paramétrage (catégories, modes de paiement, objectifs CA, solde initial) — brief à venir
 
 ## Phase 2 — Cœur du pilotage
 - [ ] Module 4.3 — Budget prévisionnel mensuel
