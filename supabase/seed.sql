@@ -43,6 +43,15 @@ values
   ('a1000000-0000-0000-0000-0000000000c1', 'CEO Boutique Test', 'ceo-a@test.besmart.local', 'ceo', 'a0000000-0000-0000-0000-000000000001', now()),
   ('a1000000-0000-0000-0000-0000000000c2', 'Comptable Boutique Test', 'comptable-a@test.besmart.local', 'comptable', 'a0000000-0000-0000-0000-000000000001', now());
 
+insert into public.categories (id, entreprise_id, libelle, type)
+values
+  ('a2000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'Loyer', 'fixe'),
+  ('a2000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'Fournitures', 'variable'),
+  ('a2000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'Ventes boutique', 'revenu');
+
+insert into public.objectifs_ca (id, entreprise_id, type_periode, annee, mois, montant_cible)
+values ('a3000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'mensuel', 2026, 9, 1000000);
+
 -- =========================================================================
 -- Entreprise B — « Atelier Test SARL » (sert uniquement à prouver
 -- l'isolation : ne doit jamais être visible depuis l'entreprise A)
@@ -75,6 +84,12 @@ insert into auth.users (
 insert into public.utilisateurs (id, nom, email, role, entreprise_id, created_at)
 values
   ('b1000000-0000-0000-0000-0000000000c1', 'CEO Atelier Test', 'ceo-b@test.besmart.local', 'ceo', 'b0000000-0000-0000-0000-000000000001', now());
+
+insert into public.categories (id, entreprise_id, libelle, type)
+values ('b2000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', 'Matières premières', 'variable');
+
+insert into public.objectifs_ca (id, entreprise_id, type_periode, annee, mois, montant_cible)
+values ('b3000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', 'mensuel', 2026, 9, 400000);
 
 -- =========================================================================
 -- Compte de supervision Be Smart (super-admin, claim app_metadata.super_admin)

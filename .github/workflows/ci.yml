@@ -57,6 +57,12 @@ jobs:
             -v ON_ERROR_STOP=1 \
             -f supabase/tests/bootstrap_entreprise_ceo.sql
 
+      - name: Test paramétrage — catégories et objectifs de CA (adversarial, Module 4.2)
+        run: |
+          psql "$(supabase status -o env | grep DB_URL | cut -d '=' -f2- | tr -d '\"')" \
+            -v ON_ERROR_STOP=1 \
+            -f supabase/tests/parametrage_categories_objectifs.sql
+
       - name: Build Next.js
         env:
           NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
