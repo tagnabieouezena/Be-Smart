@@ -93,3 +93,23 @@ insert into auth.users (
   crypt('mot-de-passe-test', gen_salt('bf')),
   now(), '{"super_admin": true}', '{}', now(), now(), '', '', '', ''
 );
+
+-- =========================================================================
+-- Compte Auth "vierge" (aucune ligne `utilisateurs`) — sert au test
+-- adversarial de la RPC creer_entreprise_et_ceo (Module 4.1) : premier
+-- appel doit réussir, un deuxième appel avec ce même compte doit échouer.
+-- =========================================================================
+
+insert into auth.users (
+  instance_id, id, aud, role, email, encrypted_password,
+  email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
+  created_at, updated_at, confirmation_token, email_change,
+  email_change_token_new, recovery_token
+) values (
+  '00000000-0000-0000-0000-000000000000',
+  'd0000000-0000-0000-0000-0000000000c1',
+  'authenticated', 'authenticated',
+  'nouveau-ceo@test.besmart.local',
+  crypt('mot-de-passe-test', gen_salt('bf')),
+  now(), '{}', '{}', now(), now(), '', '', '', ''
+);
