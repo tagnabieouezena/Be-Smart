@@ -60,9 +60,17 @@ export function FormulaireSaisieTransaction({
     const supabase = createClient();
     const id = crypto.randomUUID();
     let justificatifPath: string | null = null;
+    let justificatifNonJoint = false;
 
     if (fichier) {
-      const chemin = `${entrepriseId}/${id}/${fichier.name}`;
+      // Supabase Storage refuse les accents et autres caractères spéciaux
+      // dans les clés (ex. "reçu électricité.jpg" → 400 InvalidKey) — cible
+      // francophone, ce cas est fréquent. On ne garde que l'extension : le
+      // préfixe entreprise_id/id/ suffit déjà à identifier le fichier et
+      // reste conforme à la contrainte SQL sur justificatif_path.
+      const extension = fichier.name.includes(".") ? fichier.name.split(".").pop() : null;
+      const nomFichier = extension ? `justificatif.${extension}` : "justificatif";
+      const chemin = `${entrepriseId}/${id}/${nomFichier}`;
       const { error: uploadError } = await supabase.storage
         .from("justificatifs")
         .upload(chemin, fichier);
@@ -70,7 +78,7 @@ export function FormulaireSaisieTransaction({
       if (uploadError) {
         // Ne bloque pas la saisie (CDC 5.1 : connexion instable) — la
         // transaction reste créable sans justificatif.
-        setAvertissement(`Justificatif non enregistré (${uploadError.message}), transaction créée sans.`);
+        justificatifNonJoint = true;
       } else {
         justificatifPath = chemin;
       }
@@ -95,6 +103,10 @@ export function FormulaireSaisieTransaction({
     if (error) {
       setErreur(error.message);
       return;
+    }
+
+    if (justificatifNonJoint) {
+      setAvertissement("Transaction enregistrée, justificatif non joint (échec de l'envoi du fichier).");
     }
 
     setDescription("");
