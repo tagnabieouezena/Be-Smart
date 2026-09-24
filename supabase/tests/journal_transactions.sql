@@ -224,3 +224,103 @@ begin
 end $$;
 
 rollback;
+
+-- ---------------------------------------------------------------------
+-- 7. justificatif_path ne peut pas pointer vers le dossier d'une autre
+--    transaction, même de la même entreprise (traçabilité de la preuve).
+-- ---------------------------------------------------------------------
+begin;
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "a1000000-0000-0000-0000-0000000000c2", "role": "authenticated"}';
+
+do $$
+begin
+  begin
+    insert into public.transactions (entreprise_id, date, description, categorie_id, type, montant, mode_paiement, justificatif_path)
+    values (
+      'a0000000-0000-0000-0000-000000000001', current_date, 'Justificatif usurpé',
+      'a2000000-0000-0000-0000-000000000003', 'entree', 1000, 'cash',
+      'a0000000-0000-0000-0000-000000000001/a7000000-0000-0000-0000-000000000001/recu.jpg'
+    );
+    raise exception 'GARDE-FOU ROMPU : justificatif_path a pu pointer vers le dossier d''une autre transaction';
+  exception
+    when check_violation then null;
+  end;
+
+  raise notice 'OK — justificatif_path incohérent avec sa propre transaction est rejeté';
+end $$;
+
+rollback;
+
+-- ---------------------------------------------------------------------
+-- 8. Une ligne_revenu_prevu 'annule' ne peut pas être rapprochée (le
+--    trigger security definer ne doit pas la réveiller en 'ok').
+-- ---------------------------------------------------------------------
+begin;
+
+update public.lignes_revenu_prevu set statut = 'annule' where id = 'a6000000-0000-0000-0000-000000000001';
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "a1000000-0000-0000-0000-0000000000c2", "role": "authenticated"}';
+
+do $$
+begin
+  begin
+    insert into public.transactions (entreprise_id, date, description, categorie_id, type, montant, mode_paiement, ligne_revenu_prevu_id)
+    values (
+      'a0000000-0000-0000-0000-000000000001', current_date, 'Rapprochement interdit',
+      'a2000000-0000-0000-0000-000000000003', 'entree', 1000, 'cash',
+      'a6000000-0000-0000-0000-000000000001'
+    );
+    raise exception 'GARDE-FOU ROMPU : une ligne de revenu prévu annulée a pu être rapprochée';
+  exception
+    when others then
+      if sqlerrm not like '%pas en attente%' then
+        raise exception 'ECHEC INATTENDU (ligne annulée) : %', sqlerrm;
+      end if;
+  end;
+
+  raise notice 'OK — une ligne de revenu prévu annulée ne peut pas être rapprochée';
+end $$;
+
+rollback;
+
+-- ---------------------------------------------------------------------
+-- 9. Compte de supervision Be Smart : aucun accès aux transactions ni
+--    aux justificatifs Storage (pas une ligne `utilisateurs` — n'appartient
+--    à aucune entreprise cliente, current_entreprise_id() renvoie NULL).
+-- ---------------------------------------------------------------------
+begin;
+
+-- Objet Storage inséré en tant que rôle superuser (bypass RLS) pour que
+-- le test prouve un vrai refus, pas seulement l'absence de données.
+insert into storage.objects (bucket_id, name, owner, metadata)
+values (
+  'justificatifs',
+  'a0000000-0000-0000-0000-000000000001/a7000000-0000-0000-0000-000000000001/recu.jpg',
+  null,
+  '{}'
+);
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "c0000000-0000-0000-0000-000000000001", "role": "authenticated", "app_metadata": {"super_admin": true}}';
+
+do $$
+declare
+  v_count int;
+begin
+  select count(*) into v_count from public.transactions;
+  if v_count <> 0 then
+    raise exception 'ISOLATION ROMPUE : la supervision Be Smart voit % transaction(s)', v_count;
+  end if;
+
+  select count(*) into v_count from storage.objects where bucket_id = 'justificatifs';
+  if v_count <> 0 then
+    raise exception 'ISOLATION ROMPUE : la supervision Be Smart voit % objet(s) Storage justificatifs', v_count;
+  end if;
+
+  raise notice 'OK — la supervision Be Smart n''a aucun accès aux transactions ni aux justificatifs';
+end $$;
+
+rollback;
