@@ -38,7 +38,18 @@ begin
     raise exception 'seuil_ecart_significatif() devrait valoir 0.10';
   end if;
 
-  raise notice 'OK — ecarts_mensuels en security invoker + search_path fixé, vue 4.3 en security_invoker, seuil = 0.10';
+  -- Une fonction Postgres est exécutable par PUBLIC par défaut : aucune
+  -- entrée PUBLIC (grantee 0) ni anon ne doit subsister sur les ACL.
+  if exists (
+    select 1
+    from pg_proc p, aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+    where p.proname in ('ecarts_mensuels', 'seuil_ecart_significatif')
+      and (a.grantee = 0 or a.grantee = 'anon'::regrole)
+  ) then
+    raise exception 'ACL : ecarts_mensuels / seuil_ecart_significatif exécutables par PUBLIC ou anon';
+  end if;
+
+  raise notice 'OK — ecarts_mensuels en security invoker + search_path fixé, vue 4.3 en security_invoker, seuil = 0.10, aucun droit PUBLIC/anon';
 end $$;
 
 rollback;
@@ -288,7 +299,7 @@ insert into auth.users (
 );
 
 insert into public.entreprises (id, nom, secteur, devise, solde_initial)
-values ('e0000000-0000-0000-0000-000000000002', 'Entreprise Ecarts 2', 'Test', 'FCFA', 0);
+values ('e0000000-0000-0000-0000-000000000002', 'Entreprise Ecarts 2', 'Test', 'FCFA', 100000);
 
 insert into public.utilisateurs (id, nom, email, role, entreprise_id)
 values ('e1000000-0000-0000-0000-0000000000d1', 'CEO E2', 'ceo-e2@test.besmart.local', 'ceo', 'e0000000-0000-0000-0000-000000000002');
@@ -302,6 +313,7 @@ insert into public.budgets_mensuels (id, entreprise_id, mois, annee)
 values ('e4000000-0000-0000-0000-0000000000a7', 'e0000000-0000-0000-0000-000000000002', 7, 2026);
 
 insert into public.transactions (entreprise_id, date, description, categorie_id, type, montant, mode_paiement, saisi_par) values
+  ('e0000000-0000-0000-0000-000000000002', '2025-12-15', 'Vente décembre 2025 sans budget', 'e2000000-0000-0000-0000-0000000000a1', 'entree', 40000, 'cash', 'e1000000-0000-0000-0000-0000000000d1'),
   ('e0000000-0000-0000-0000-000000000002', '2026-06-10', 'Vente juin sans budget', 'e2000000-0000-0000-0000-0000000000a1', 'entree', 50000, 'cash', 'e1000000-0000-0000-0000-0000000000d1'),
   ('e0000000-0000-0000-0000-000000000002', '2026-07-10', 'Dépense non prévue', 'e2000000-0000-0000-0000-0000000000a2', 'sortie', 20000, 'cash', 'e1000000-0000-0000-0000-0000000000d1');
 
@@ -346,6 +358,41 @@ begin
     r.depense_non_prevue, r.depenses_ecart_pct;
 
   raise notice 'OK — mois sans budget (prévu/écart null, aucune alerte) et dépense non prévue (indicateur, écart %% null)';
+end $$;
+
+-- Historique multi-années : le solde de début cumule TOUT l'historique
+-- antérieur au mois (solde_initial 100 000 + entrée de 40 000 du 15/12/2025),
+-- pas seulement l'année demandée.
+do $$
+declare
+  r record;
+begin
+  select * into r from public.ecarts_mensuels(2026, '2026-09-15') f where f.mois = 6;
+  if r.solde_debut is distinct from 140000 then
+    raise exception 'JUIN 2026 solde_debut : attendu 140000 (100000 + 40000 de décembre 2025), obtenu %', r.solde_debut;
+  end if;
+  raise notice 'JUIN 2026 solde_debut : attendu 140000 | obtenu %', r.solde_debut;
+
+  select * into r from public.ecarts_mensuels(2025, '2026-09-15') f where f.mois = 12;
+  if not found then
+    raise exception 'DECEMBRE 2025 : ligne attendue (transaction sans budget)';
+  end if;
+  if r.revenus_reel is distinct from 40000 then
+    raise exception 'DECEMBRE 2025 revenus réel : attendu 40000, obtenu %', r.revenus_reel;
+  end if;
+  if r.revenus_prevu is not null or r.revenus_ecart is not null then
+    raise exception 'DECEMBRE 2025 : prévu et écart attendus null (obtenu prévu %, écart %)', r.revenus_prevu, r.revenus_ecart;
+  end if;
+  if r.statut_mois <> 'clos' or r.a_budget or r.alerte_revenus then
+    raise exception 'DECEMBRE 2025 : clos, sans budget, sans alerte attendus';
+  end if;
+  if r.solde_debut is distinct from 100000 or r.solde_fin_reel is distinct from 140000 then
+    raise exception 'DECEMBRE 2025 soldes : attendu début 100000 / fin réel 140000, obtenu % / %', r.solde_debut, r.solde_fin_reel;
+  end if;
+  raise notice 'DECEMBRE 2025 : revenus réel attendu 40000 | obtenu %, prévu attendu null | obtenu %, solde début attendu 100000 | obtenu %, solde fin réel attendu 140000 | obtenu %',
+    r.revenus_reel, r.revenus_prevu, r.solde_debut, r.solde_fin_reel;
+
+  raise notice 'OK — solde de début cumulé sur tout l''historique antérieur, toutes années confondues (juin 2026 = 140000 ; décembre 2025 : revenus 40000, prévu null)';
 end $$;
 
 rollback;
