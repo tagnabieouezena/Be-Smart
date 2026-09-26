@@ -18,7 +18,12 @@
 
 ## Phase 2 — Cœur du pilotage
 - [ ] Module 4.3 — Budget prévisionnel mensuel
-- [ ] Module 4.4 — Journal des transactions réelles (saisie comptable)
+- [x] Module 4.4 — Journal des transactions réelles ✅ mergée dans `main` (PR #5, commits `a0ee741` + `321f7c7`)
+  - Décisions actées par Ouezz : aucune modification ni suppression d'une transaction saisie (correction = nouvelle transaction) ; lecture élargie à toute l'entreprise pour le comptable ; justificatif joint uniquement à la création (pas d'ajout après coup en V1) ; import/export CSV reporté à un brief dédié.
+  - Sécurité : `justificatif_path` contraint en SQL au préfixe `{entreprise_id}/{id}/` ; rapprochement via trigger `security definer` limité à l'entreprise et aux lignes `en_attente` ; `saisi_par` forcé à `auth.uid()` ; non-accès de la supervision Be Smart prouvé par test.
+  - Storage refuse les noms de fichier accentués (`400 InvalidKey`) → fichiers renommés `justificatif.<ext>`. À appliquer à tout futur upload (ex. Module 4.13).
+  - À retenir pour le Module 4.6 : une transaction rapprochée passe la ligne de CA prévisionnel à `ok` même en cas de paiement partiel → les écarts Prévu/Réel doivent se calculer sur les montants des transactions, jamais sur le statut des lignes.
+  - Backlog non bloquant : envoyer les montants en chaîne plutôt que via `Number()` (formulaires 4.3 et 4.4), à harmoniser lors d'un passage de nettoyage.
 - [ ] Module 4.6 — Suivi des écarts (Prévu vs Réel)
 
 ## Phase 3 — Créances et vision consolidée
