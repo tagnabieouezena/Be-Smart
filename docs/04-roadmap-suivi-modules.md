@@ -17,8 +17,15 @@
   - Décision produit tranchée par Ouezz : modes de paiement en liste fixe (`cash`/`mobile_money`/`virement`/`cheque`), pas de table dédiée — à respecter dans la colonne `mode_paiement` du Module 4.4.
 
 ## Phase 2 — Cœur du pilotage
-- [ ] Module 4.3 — Budget prévisionnel mensuel
-- [ ] Module 4.4 — Journal des transactions réelles (saisie comptable)
+- [x] Module 4.3 — Budget prévisionnel mensuel ✅ mergée dans `main` (PR #4, commit `c6b2e66`)
+  - Point de sécurité à retenir pour les modules suivants : la cohérence entre tables liées (budget/catégorie/entreprise) doit être vérifiée par trigger `BEFORE INSERT/UPDATE`, pas seulement par RLS — une policy `entreprise_id = current_entreprise_id()` seule laisse passer une ligne pointant vers un budget ou une catégorie d'une autre entreprise tant que la ligne elle-même porte le bon `entreprise_id`. Testé explicitement (test adversarial #4 de ce module) ; à reproduire pour toute nouvelle table qui référence plusieurs tables scopées par entreprise.
+  - Décision produit tranchée par Ouezz : `statut = 'valide'` sur un budget n'entraîne aucun verrouillage des lignes en V1 (le CDC ne l'exige pas) — à réévaluer plus tard si un besoin opérationnel réel apparaît, sans effort de migration majeur puisque c'est un simple flag.
+- [x] Module 4.4 — Journal des transactions réelles ✅ mergée dans `main` (PR #5, commits `a0ee741` + `321f7c7`)
+  - Décisions actées par Ouezz : aucune modification ni suppression d'une transaction saisie (correction = nouvelle transaction) ; lecture élargie à toute l'entreprise pour le comptable ; justificatif joint uniquement à la création (pas d'ajout après coup en V1) ; import/export CSV reporté à un brief dédié.
+  - Sécurité : `justificatif_path` contraint en SQL au préfixe `{entreprise_id}/{id}/` ; rapprochement via trigger `security definer` limité à l'entreprise et aux lignes `en_attente` ; `saisi_par` forcé à `auth.uid()` ; non-accès de la supervision Be Smart prouvé par test.
+  - Storage refuse les noms de fichier accentués (`400 InvalidKey`) → fichiers renommés `justificatif.<ext>`. À appliquer à tout futur upload (ex. Module 4.13).
+  - À retenir pour le Module 4.6 : une transaction rapprochée passe la ligne de CA prévisionnel à `ok` même en cas de paiement partiel → les écarts Prévu/Réel doivent se calculer sur les montants des transactions, jamais sur le statut des lignes.
+  - Backlog non bloquant : envoyer les montants en chaîne plutôt que via `Number()` (formulaires 4.3 et 4.4), à harmoniser lors d'un passage de nettoyage.
 - [ ] Module 4.6 — Suivi des écarts (Prévu vs Réel)
 
 ## Phase 3 — Créances et vision consolidée
