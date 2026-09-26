@@ -112,6 +112,43 @@ values ('b4000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-0000000
 insert into public.lignes_charge_prevue (id, budget_mensuel_id, entreprise_id, categorie_id, designation, montant, statut)
 values ('b5000000-0000-0000-0000-000000000001', 'b4000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', 'b2000000-0000-0000-0000-000000000001', 'Bois et tissus', 60000, 'a_faire');
 
+insert into public.categories (id, entreprise_id, libelle, type)
+values ('b2000000-0000-0000-0000-000000000002', 'b0000000-0000-0000-0000-000000000001', 'Ventes atelier', 'revenu');
+
+insert into public.lignes_revenu_prevu (id, budget_mensuel_id, entreprise_id, source, montant_estime, statut)
+values ('b6000000-0000-0000-0000-000000000001', 'b4000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', 'Commande sur mesure', 100000, 'en_attente');
+
+-- =========================================================================
+-- Transactions (Module 4.4) — une par entreprise, pour les tests
+-- d'isolation. Saisies par le comptable de chaque entreprise.
+-- =========================================================================
+
+insert into public.transactions (id, entreprise_id, date, description, categorie_id, type, montant, mode_paiement, saisi_par)
+values (
+  'a7000000-0000-0000-0000-000000000001',
+  'a0000000-0000-0000-0000-000000000001',
+  '2026-09-05',
+  'Vente comptoir',
+  'a2000000-0000-0000-0000-000000000003',
+  'entree',
+  25000,
+  'cash',
+  'a1000000-0000-0000-0000-0000000000c2'
+);
+
+insert into public.transactions (id, entreprise_id, date, description, categorie_id, type, montant, mode_paiement, saisi_par)
+values (
+  'b7000000-0000-0000-0000-000000000001',
+  'b0000000-0000-0000-0000-000000000001',
+  '2026-09-05',
+  'Vente atelier',
+  'b2000000-0000-0000-0000-000000000002',
+  'entree',
+  15000,
+  'cash',
+  'b1000000-0000-0000-0000-0000000000c1'
+);
+
 -- =========================================================================
 -- Compte de supervision Be Smart (super-admin, claim app_metadata.super_admin)
 -- =========================================================================

@@ -69,6 +69,12 @@ jobs:
             -v ON_ERROR_STOP=1 \
             -f supabase/tests/budget_previsionnel.sql
 
+      - name: Test journal des transactions (adversarial, Module 4.4)
+        run: |
+          psql "$(supabase status -o env | grep DB_URL | cut -d '=' -f2- | tr -d '\"')" \
+            -v ON_ERROR_STOP=1 \
+            -f supabase/tests/journal_transactions.sql
+
       - name: Build Next.js
         env:
           NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
