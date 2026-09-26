@@ -26,7 +26,11 @@
   - Storage refuse les noms de fichier accentués (`400 InvalidKey`) → fichiers renommés `justificatif.<ext>`. À appliquer à tout futur upload (ex. Module 4.13).
   - À retenir pour le Module 4.6 : une transaction rapprochée passe la ligne de CA prévisionnel à `ok` même en cas de paiement partiel → les écarts Prévu/Réel doivent se calculer sur les montants des transactions, jamais sur le statut des lignes.
   - Backlog non bloquant : envoyer les montants en chaîne plutôt que via `Number()` (formulaires 4.3 et 4.4), à harmoniser lors d'un passage de nettoyage.
-- [ ] Module 4.6 — Suivi des écarts (Prévu vs Réel)
+- [x] Module 4.6 — Suivi des écarts (Prévu vs Réel) ✅ mergée dans `main` (PR #7, commit `f53f738`)
+  - Décisions actées par Ouezz : seuil d'écart significatif fixe à 10 % (inclusif, `>=`), défini dans la seule fonction `seuil_ecart_significatif()` ; alerte uniquement sur écart défavorable d'un mois clos ; solde prévu de début de mois = solde réel de fin du mois précédent (la chaîne 100 % prévisionnelle relève du 4.9) ; mois sans budget → prévu `null`, aucune alerte.
+  - Changement de comportement assumé : `v_budget_mensuel_totaux` (4.3) exclut désormais les lignes `annule` → les totaux de l'écran Budget changent en conséquence. Une seule règle du prévu dans tout le produit.
+  - Sécurité : `ecarts_mensuels` en `security invoker`, zéro ligne hors rôle CEO (comptable, supervision), `revoke execute from public` vérifié sur les ACL réelles et verrouillé par assertion ; cumul du solde prouvé sur plusieurs années.
+  - Manque identifié : aucune barre de navigation dans l'application (écrans accessibles uniquement par URL) → brief « navigation par rôle » à faire avant toute démonstration.
 
 ## Phase 3 — Créances et vision consolidée
 - [ ] Module 4.5 — Suivi des créances clients
