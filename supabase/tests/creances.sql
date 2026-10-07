@@ -310,6 +310,56 @@ end $$;
 rollback;
 
 -- ---------------------------------------------------------------------
+-- 1bis. Suppression d'une créance ayant un paiement, en service_role
+--       (donc HORS RLS) : rejetée par la clé étrangère
+--       transactions_creance_id_fkey (on delete restrict) ; la transaction
+--       comme la créance existent toujours après.
+-- ---------------------------------------------------------------------
+begin;
+
+select pg_temp.setup_creances();
+
+set local role service_role;
+
+do $$
+declare
+  v_contrainte text;
+  v_transactions int;
+  v_creance int;
+begin
+  begin
+    delete from public.creances where id = 'f8000000-0000-0000-0000-000000000001';
+    raise exception 'GARDE-FOU ROMPU : service_role a pu supprimer une créance ayant un paiement';
+  exception
+    when foreign_key_violation then
+      get stacked diagnostics v_contrainte = constraint_name;
+      if v_contrainte <> 'transactions_creance_id_fkey' then
+        raise exception 'Rejet par la mauvaise contrainte : % (attendu transactions_creance_id_fkey)', v_contrainte;
+      end if;
+      raise notice 'SERVICE_ROLE suppression de C1 (paiement lié) : rejetée par la contrainte %', v_contrainte;
+  end;
+
+  select count(*) into v_transactions from public.transactions
+  where creance_id = 'f8000000-0000-0000-0000-000000000001';
+  select count(*) into v_creance from public.creances
+  where id = 'f8000000-0000-0000-0000-000000000001';
+
+  if v_transactions <> 1 or v_creance <> 1 then
+    raise exception 'Après le rejet : % transaction(s) liée(s) (attendu 1) et % créance (attendu 1)', v_transactions, v_creance;
+  end if;
+
+  -- Témoin positif hors RLS : une créance sans paiement (C2) se supprime.
+  delete from public.creances where id = 'f8000000-0000-0000-0000-000000000002';
+  if not found then
+    raise exception 'TÉMOIN POSITIF ABSENT : service_role devrait pouvoir supprimer C2 (sans paiement)';
+  end if;
+
+  raise notice 'OK — service_role (hors RLS) : suppression d''une créance payée rejetée par transactions_creance_id_fkey, transaction et créance toujours présentes ; C2 (sans paiement) supprimable';
+end $$;
+
+rollback;
+
+-- ---------------------------------------------------------------------
 -- 2. Créance partiellement payée NON échue : C6 (100 000, échéance
 --    2026-10-31, paiement de 30 000), date de référence 2026-10-01.
 -- ---------------------------------------------------------------------
