@@ -6,6 +6,12 @@ import { createClient } from "@/lib/supabase/client";
 
 type Categorie = { id: string; libelle: string; type: "fixe" | "variable" | "revenu" };
 type LigneRevenuPrevu = { id: string; source: string; montant_estime: number };
+type PaiementCreance = {
+  creanceId: string;
+  client: string;
+  resteDu: number;
+  onTermine?: () => void;
+};
 
 const MODES_PAIEMENT = [
   { valeur: "cash", libelle: "Cash" },
@@ -18,20 +24,24 @@ export function FormulaireSaisieTransaction({
   entrepriseId,
   categories,
   lignesRevenuPrevuEnAttente,
+  paiementCreance,
 }: {
   entrepriseId: string;
   categories: Categorie[];
   lignesRevenuPrevuEnAttente: LigneRevenuPrevu[];
+  paiementCreance?: PaiementCreance;
 }) {
   const router = useRouter();
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [description, setDescription] = useState("");
-  const [type, setType] = useState<"entree" | "sortie">("sortie");
+  const [description, setDescription] = useState(
+    paiementCreance ? `Encaissement créance — ${paiementCreance.client}` : "",
+  );
+  const [type, setType] = useState<"entree" | "sortie">(paiementCreance ? "entree" : "sortie");
   const categoriesFiltrees = categories.filter((c) =>
     type === "entree" ? c.type === "revenu" : c.type !== "revenu",
   );
   const [categorieId, setCategorieId] = useState(categoriesFiltrees[0]?.id ?? "");
-  const [montant, setMontant] = useState("");
+  const [montant, setMontant] = useState(paiementCreance ? String(paiementCreance.resteDu) : "");
   const [modePaiement, setModePaiement] = useState(MODES_PAIEMENT[0].valeur);
   const [notes, setNotes] = useState("");
   const [ligneRevenuPrevuId, setLigneRevenuPrevuId] = useState("");
@@ -96,6 +106,7 @@ export function FormulaireSaisieTransaction({
       notes: notes || null,
       ligne_revenu_prevu_id: ligneRevenuPrevuId || null,
       justificatif_path: justificatifPath,
+      creance_id: paiementCreance?.creanceId ?? null,
     });
 
     setEnCours(false);
@@ -115,22 +126,25 @@ export function FormulaireSaisieTransaction({
     setLigneRevenuPrevuId("");
     setFichier(null);
     router.refresh();
+    paiementCreance?.onTermine?.();
   }
 
   return (
     <form onSubmit={onSubmit} style={{ display: "grid", gap: "0.5rem", maxWidth: 400 }}>
-      <h3>Nouvelle saisie</h3>
+      <h3>{paiementCreance ? `Enregistrer un paiement — ${paiementCreance.client}` : "Nouvelle saisie"}</h3>
       <label>
         Date
         <input required type="date" value={date} onChange={(e) => setDate(e.target.value)} />
       </label>
-      <label>
-        Type
-        <select value={type} onChange={(e) => changerType(e.target.value as "entree" | "sortie")}>
-          <option value="sortie">Sortie</option>
-          <option value="entree">Entrée</option>
-        </select>
-      </label>
+      {!paiementCreance && (
+        <label>
+          Type
+          <select value={type} onChange={(e) => changerType(e.target.value as "entree" | "sortie")}>
+            <option value="sortie">Sortie</option>
+            <option value="entree">Entrée</option>
+          </select>
+        </label>
+      )}
       <label>
         Description
         <input required value={description} onChange={(e) => setDescription(e.target.value)} />
@@ -151,6 +165,7 @@ export function FormulaireSaisieTransaction({
           required
           type="number"
           min={0}
+          max={paiementCreance?.resteDu}
           value={montant}
           onChange={(e) => setMontant(e.target.value)}
         />
@@ -165,7 +180,7 @@ export function FormulaireSaisieTransaction({
           ))}
         </select>
       </label>
-      {type === "entree" && lignesRevenuPrevuEnAttente.length > 0 && (
+      {!paiementCreance && type === "entree" && lignesRevenuPrevuEnAttente.length > 0 && (
         <label>
           Rapprocher avec une ligne de CA prévisionnel (optionnel)
           <select
