@@ -33,7 +33,9 @@
   - Manque identifié : aucune barre de navigation dans l'application (écrans accessibles uniquement par URL) → brief « navigation par rôle » à faire avant toute démonstration.
 
 ## Phase 3 — Créances et vision consolidée
-- [ ] Module 4.5 — Suivi des créances clients
+- [x] Module 4.5 — Suivi des créances clients ✅ mergée dans `main` (PR #9, commit `edac215`)
+  - Décisions actées par Ouezz : statut et montant encaissé jamais stockés, calculés depuis les transactions liées ; encaissement = une transaction d'entrée liée (paiements partiels = plusieurs transactions) ; surpaiement bloqué par verrou de ligne (concurrence prouvée avec deux sessions) ; suppression d'une créance impossible dès qu'un paiement existe (`on delete restrict`, testé hors RLS).
+  - À décider avant commercialisation : sort des données d'une entreprise cliente qui quitte le service (toutes les tables sont en `on delete cascade` sur `entreprise_id`).
 - [ ] Module 4.7 — Comparaison mensuelle CA/Dépenses/Résultat net
 - [ ] Module 4.8 — Synthèses mensuelle, trimestrielle, annuelle
 - [ ] Module 4.9 — Cashflow prévisionnel
