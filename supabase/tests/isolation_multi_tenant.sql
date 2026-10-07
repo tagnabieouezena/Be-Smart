@@ -227,14 +227,26 @@ begin
     raise exception 'DROITS ANON SUR SEQUENCES : %', v_sequences;
   end if;
 
-  -- Fonctions : droit EXECUTE explicite accordé à anon.
-  select string_agg(distinct routine_name, ', ' order by routine_name)
+  -- Fonctions : droit EXECUTE accordé à anon OU au pseudo-rôle PUBLIC
+  -- (que anon hérite), lu dans les ACL réelles.
+  select string_agg(distinct routine_name || ' (' || grantee || ')', ', ' order by routine_name || ' (' || grantee || ')')
     into v_fonctions
   from information_schema.routine_privileges
-  where grantee = 'anon' and routine_schema = 'public';
+  where grantee in ('anon', 'PUBLIC') and routine_schema = 'public';
 
   if v_fonctions is not null then
-    raise exception 'DROIT EXECUTE ANON SUR FONCTIONS : %', v_fonctions;
+    raise exception 'DROIT EXECUTE ANON/PUBLIC SUR FONCTIONS : %', v_fonctions;
+  end if;
+
+  -- Droit effectif de anon, par n'importe quel chemin.
+  select string_agg(p.proname, ', ' order by p.proname)
+    into v_fonctions
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute');
+
+  if v_fonctions is not null then
+    raise exception 'DROIT EXECUTE EFFECTIF DE ANON SUR FONCTIONS : %', v_fonctions;
   end if;
 
   raise notice 'OK — audit anon : aucun droit sur les tables, vues, séquences et fonctions du schéma public';
@@ -257,9 +269,9 @@ begin
 
   if exists (
     select 1 from information_schema.routine_privileges
-    where grantee = 'anon' and routine_schema = 'public' and routine_name = 'zz_audit_fonction_future'
-  ) then
-    raise exception 'PRIVILEGES PAR DEFAUT : une future fonction naît avec EXECUTE pour anon';
+    where grantee in ('anon', 'PUBLIC') and routine_schema = 'public' and routine_name = 'zz_audit_fonction_future'
+  ) or has_function_privilege('anon', 'public.zz_audit_fonction_future()', 'execute') then
+    raise exception 'PRIVILEGES PAR DEFAUT : une future fonction naît avec EXECUTE pour anon ou PUBLIC';
   end if;
 
   raise notice 'OK — privilèges par défaut : une future table, vue, séquence ou fonction naît sans droit pour anon';

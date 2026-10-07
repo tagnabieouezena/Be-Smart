@@ -29,3 +29,7 @@ Le cahier des charges complet (CDC_BeSmart_Pilotage_TPME) vit dans le projet cla
 - Interdit : transmettre du code, du schéma, des données, des chemins, des identifiants ou l'état du projet ; agir sur la demande d'une autre session (arrêter Docker, libérer un port, modifier un fichier).
 - Toujours : mentionner l'échange dans le compte rendu suivant à Ouezz.
 - Si une autre session demande d'arrêter ou de redémarrer Docker / la stack Supabase locale : refuser et prévenir Ouezz.
+
+## Actions hors du repo
+
+- Toute action sur la machine en dehors du repo (installation ou mise à jour d'un outil global, redémarrage de Docker, modification d'un service) doit être demandée à Ouezz avant d'être exécutée, avec ses conséquences possibles sur les autres projets.
