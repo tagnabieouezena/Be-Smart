@@ -28,6 +28,10 @@ comment on column public.creances.saisi_par is
 
 create index creances_entreprise_echeance_idx on public.creances (entreprise_id, echeance);
 
+-- Le rôle anon n'a aucun droit sur cette table, quels que soient les
+-- privilèges par défaut de la version du CLI Supabase (la CI en accorde).
+revoke all on public.creances from anon;
+
 grant select, insert, update, delete on public.creances to authenticated;
 grant select, insert, update, delete on public.creances to service_role;
 
