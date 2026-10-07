@@ -81,6 +81,17 @@ jobs:
             -v ON_ERROR_STOP=1 \
             -f supabase/tests/suivi_ecarts.sql
 
+      - name: Test créances clients (calculs chiffrés + adversarial, Module 4.5)
+        run: |
+          psql "$(supabase status -o env | grep DB_URL | cut -d '=' -f2- | tr -d '\"')" \
+            -v ON_ERROR_STOP=1 \
+            -f supabase/tests/creances.sql
+
+      - name: Test créances — paiements concurrents (deux sessions psql, Module 4.5)
+        run: |
+          DB_URL="$(supabase status -o env | grep DB_URL | cut -d '=' -f2- | tr -d '\"')" \
+            bash supabase/tests/creances_concurrence.sh
+
       - name: Build Next.js
         env:
           NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321

@@ -150,6 +150,32 @@ values (
 );
 
 -- =========================================================================
+-- Créances (Module 4.5) — une par entreprise, pour les tests d'isolation.
+-- =========================================================================
+
+insert into public.creances (id, entreprise_id, client, montant_du, date_facturation, echeance, saisi_par)
+values (
+  'a8000000-0000-0000-0000-000000000001',
+  'a0000000-0000-0000-0000-000000000001',
+  'Client Alpha A',
+  120000,
+  '2026-09-01',
+  '2026-10-01',
+  'a1000000-0000-0000-0000-0000000000c2'
+);
+
+insert into public.creances (id, entreprise_id, client, montant_du, date_facturation, echeance, saisi_par)
+values (
+  'b8000000-0000-0000-0000-000000000001',
+  'b0000000-0000-0000-0000-000000000001',
+  'Client Beta B',
+  70000,
+  '2026-09-05',
+  '2026-10-05',
+  'b1000000-0000-0000-0000-0000000000c1'
+);
+
+-- =========================================================================
 -- Compte de supervision Be Smart (super-admin, claim app_metadata.super_admin)
 -- =========================================================================
 
