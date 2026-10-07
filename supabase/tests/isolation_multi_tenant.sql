@@ -166,3 +166,115 @@ begin
 end $$;
 
 rollback;
+
+-- ---------------------------------------------------------------------
+-- Audit des droits du rôle anon (défense en profondeur) : la RLS ne doit
+-- pas être la seule barrière. Aucune table, vue, séquence ni fonction du
+-- schéma public ne doit accorder le moindre droit à anon, et une future
+-- table doit naître sans ces droits. Lecture des ACL réelles ; échoue si
+-- une migration (ou les privilèges par défaut de l'image Supabase)
+-- réintroduit un droit.
+-- ---------------------------------------------------------------------
+begin;
+
+do $$
+declare
+  v_tables text;
+  v_fonctions text;
+  v_sequences text;
+  v_effectifs text;
+begin
+  -- Tables et vues : droits explicites accordés à anon.
+  select string_agg(table_name || ' [' || privileges || ']', ' ; ' order by table_name)
+    into v_tables
+  from (
+    select table_name, string_agg(privilege_type, ',' order by privilege_type) as privileges
+    from information_schema.role_table_grants
+    where grantee = 'anon' and table_schema = 'public'
+    group by table_name
+  ) t;
+
+  if v_tables is not null then
+    raise exception 'DROITS ANON SUR TABLES/VUES : %', v_tables;
+  end if;
+
+  -- Droits effectifs (y compris hérités) de anon sur toute table, vue ou séquence.
+  select string_agg(c.relname, ', ' order by c.relname)
+    into v_effectifs
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  where n.nspname = 'public'
+    and (
+      (c.relkind in ('r', 'v', 'm', 'p', 'f')
+        and has_table_privilege('anon', c.oid, 'select, insert, update, delete, truncate, references, trigger'))
+      or (c.relkind = 'S'
+        and has_sequence_privilege('anon', c.oid, 'usage, select, update'))
+    );
+
+  if v_effectifs is not null then
+    raise exception 'DROITS ANON EFFECTIFS SUR : %', v_effectifs;
+  end if;
+
+  -- Séquences : droits explicites (information_schema n'a pas de vue dédiée aux grants de séquences par rôle).
+  select string_agg(c.relname, ', ' order by c.relname)
+    into v_sequences
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  cross join lateral aclexplode(coalesce(c.relacl, acldefault('S', c.relowner))) a
+  where n.nspname = 'public' and c.relkind = 'S' and a.grantee = 'anon'::regrole;
+
+  if v_sequences is not null then
+    raise exception 'DROITS ANON SUR SEQUENCES : %', v_sequences;
+  end if;
+
+  -- Fonctions : droit EXECUTE accordé à anon OU au pseudo-rôle PUBLIC
+  -- (que anon hérite), lu dans les ACL réelles.
+  select string_agg(distinct routine_name || ' (' || grantee || ')', ', ' order by routine_name || ' (' || grantee || ')')
+    into v_fonctions
+  from information_schema.routine_privileges
+  where grantee in ('anon', 'PUBLIC') and routine_schema = 'public';
+
+  if v_fonctions is not null then
+    raise exception 'DROIT EXECUTE ANON/PUBLIC SUR FONCTIONS : %', v_fonctions;
+  end if;
+
+  -- Droit effectif de anon, par n'importe quel chemin.
+  select string_agg(p.proname, ', ' order by p.proname)
+    into v_fonctions
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute');
+
+  if v_fonctions is not null then
+    raise exception 'DROIT EXECUTE EFFECTIF DE ANON SUR FONCTIONS : %', v_fonctions;
+  end if;
+
+  raise notice 'OK — audit anon : aucun droit sur les tables, vues, séquences et fonctions du schéma public';
+end $$;
+
+-- Une future table (créée ici par le rôle qui exécute les migrations) doit
+-- naître sans aucun droit pour anon : privilèges par défaut verrouillés.
+create table public.zz_audit_table_future (id int);
+create view public.zz_audit_vue_future as select 1 as x;
+create sequence public.zz_audit_sequence_future;
+create function public.zz_audit_fonction_future() returns int language sql as 'select 1';
+
+do $$
+begin
+  if has_table_privilege('anon', 'public.zz_audit_table_future', 'select, insert, update, delete, truncate, references, trigger')
+     or has_table_privilege('anon', 'public.zz_audit_vue_future', 'select, insert, update, delete')
+     or has_sequence_privilege('anon', 'public.zz_audit_sequence_future', 'usage, select, update') then
+    raise exception 'PRIVILEGES PAR DEFAUT : une future table, vue ou séquence naît avec des droits pour anon';
+  end if;
+
+  if exists (
+    select 1 from information_schema.routine_privileges
+    where grantee in ('anon', 'PUBLIC') and routine_schema = 'public' and routine_name = 'zz_audit_fonction_future'
+  ) or has_function_privilege('anon', 'public.zz_audit_fonction_future()', 'execute') then
+    raise exception 'PRIVILEGES PAR DEFAUT : une future fonction naît avec EXECUTE pour anon ou PUBLIC';
+  end if;
+
+  raise notice 'OK — privilèges par défaut : une future table, vue, séquence ou fonction naît sans droit pour anon';
+end $$;
+
+rollback;
