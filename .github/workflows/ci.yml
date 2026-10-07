@@ -42,6 +42,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Test des redirections internes (chemins forgés rejetés)
+        run: node --test lib/redirection.test.mjs
+
       - name: Start Supabase local (migrations + seed)
         run: supabase start
 

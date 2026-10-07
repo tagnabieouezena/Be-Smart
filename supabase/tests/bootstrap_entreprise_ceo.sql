@@ -3,7 +3,9 @@
 -- Preuve exigée par docs/briefs/module-4.1-authentification.md : un même
 -- compte ne doit jamais pouvoir créer une deuxième entreprise ni se
 -- rattacher deux fois, et aucune entreprise orpheline ne doit apparaître
--- entre les deux tentatives.
+-- entre les deux tentatives. Depuis la confirmation d'e-mail, le 2e appel
+-- (lien rouvert, double clic) est idempotent : il renvoie la même
+-- entreprise au lieu de lever une erreur.
 --
 -- Exécution : docker exec -i supabase_db_<projet> psql -U postgres
 --             -v ON_ERROR_STOP=1 -f supabase/tests/bootstrap_entreprise_ceo.sql
@@ -21,6 +23,7 @@ declare
   v_entreprises_apres_1er_appel int;
   v_entreprises_apres_2e_appel int;
   v_entreprise_id uuid;
+  v_entreprise_2e_appel uuid;
   v_utilisateurs_count int;
 begin
   select count(*) into v_entreprises_avant from public.entreprises;
@@ -52,21 +55,18 @@ begin
     raise exception 'ECHEC : le CEO n''a pas été créé correctement au 1er appel';
   end if;
 
-  -- 2e appel, même compte : doit échouer, sans créer d'entreprise orpheline.
-  begin
-    perform public.creer_entreprise_et_ceo(
-      'Deuxieme Entreprise Frauduleuse',
-      'Autre secteur',
-      'Second CEO'
-    );
-    raise exception 'DOUBLE RATTACHEMENT AUTORISE : le 2e appel de la RPC aurait dû échouer';
-  exception
-    when others then
-      if sqlerrm not like '%déjà rattaché%' then
-        raise exception 'ECHEC INATTENDU au 2e appel (message reçu: %)', sqlerrm;
-      end if;
-      -- attendu : 'Ce compte est déjà rattaché à une entreprise.'
-  end;
+  -- 2e appel, même compte : idempotent — renvoie la même entreprise, sans
+  -- en créer une seconde et sans erreur (double clic, lien de confirmation
+  -- rouvert).
+  v_entreprise_2e_appel := public.creer_entreprise_et_ceo(
+    'Deuxieme Entreprise Frauduleuse',
+    'Autre secteur',
+    'Second CEO'
+  );
+
+  if v_entreprise_2e_appel is distinct from v_entreprise_id then
+    raise exception 'IDEMPOTENCE ROMPUE : le 2e appel a renvoyé % au lieu de %', v_entreprise_2e_appel, v_entreprise_id;
+  end if;
 
   select count(*) into v_entreprises_apres_2e_appel from public.entreprises;
   if v_entreprises_apres_2e_appel <> v_entreprises_apres_1er_appel then
@@ -74,7 +74,12 @@ begin
       v_entreprises_apres_1er_appel, v_entreprises_apres_2e_appel;
   end if;
 
-  raise notice 'OK — bootstrap entreprise+CEO : 1er appel réussi, 2e appel rejeté, aucune entreprise orpheline';
+  if exists (select 1 from public.entreprises where nom = 'Deuxieme Entreprise Frauduleuse')
+     or (select nom from public.utilisateurs where id = 'd0000000-0000-0000-0000-0000000000c1') <> 'Nouveau CEO' then
+    raise exception 'IDEMPOTENCE ROMPUE : le 2e appel a modifié ou créé quelque chose';
+  end if;
+
+  raise notice 'OK — bootstrap entreprise+CEO : 1er appel réussi, 2e appel idempotent (même entreprise, rien créé ni modifié)';
 end $$;
 
 rollback;
