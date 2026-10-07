@@ -83,3 +83,91 @@ begin
 end $$;
 
 rollback;
+
+-- ---------------------------------------------------------------------
+-- Compte issu d'une invitation (auth.users.invited_at non nul) :
+--  a) orphelin (aucune ligne utilisateurs, cas connu du Module 4.1) :
+--     l'appel est rejeté et aucune entreprise n'est créée, même avec des
+--     noms bien formés ;
+--  b) invité DÉJÀ rattaché (comptable normal) : l'appel reste idempotent
+--     (renvoie son entreprise, ne crée rien).
+-- ---------------------------------------------------------------------
+begin;
+
+insert into auth.users (
+  instance_id, id, aud, role, email, encrypted_password,
+  email_confirmed_at, invited_at, raw_app_meta_data, raw_user_meta_data,
+  created_at, updated_at, confirmation_token, email_change,
+  email_change_token_new, recovery_token
+) values (
+  '00000000-0000-0000-0000-000000000000', 'd0000000-0000-0000-0000-0000000000c9',
+  'authenticated', 'authenticated', 'orphelin-invite@test.besmart.local',
+  crypt('mot-de-passe-test', gen_salt('bf')), now(), now(), '{}',
+  '{"nom_entreprise": "Entreprise Forgee", "nom_ceo": "Orphelin"}',
+  now(), now(), '', '', '', ''
+);
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "d0000000-0000-0000-0000-0000000000c9", "role": "authenticated"}';
+
+do $$
+declare
+  v_entreprises_avant int;
+  v_entreprises_apres int;
+begin
+  select count(*) into v_entreprises_avant from public.entreprises;
+
+  begin
+    perform public.creer_entreprise_et_ceo('Entreprise Forgee', 'Test', 'Orphelin');
+    raise exception 'GARDE-FOU ROMPU : un compte issu d''une invitation, sans entreprise, a pu en créer une';
+  exception
+    when others then
+      if sqlerrm not like '%créé par invitation%contactez votre gérant%' then
+        raise exception 'ECHEC INATTENDU (orphelin invité) : %', sqlerrm;
+      end if;
+      raise notice 'ORPHELIN INVITE : rejeté — "%"', sqlerrm;
+  end;
+
+  select count(*) into v_entreprises_apres from public.entreprises;
+  if v_entreprises_apres <> v_entreprises_avant then
+    raise exception 'ENTREPRISE CREEE : avant=%, après=%', v_entreprises_avant, v_entreprises_apres;
+  end if;
+
+  if exists (select 1 from public.utilisateurs where id = 'd0000000-0000-0000-0000-0000000000c9')
+     or exists (select 1 from public.entreprises where nom = 'Entreprise Forgee') then
+    raise exception 'ORPHELIN : un profil ou une entreprise a été créé malgré le rejet';
+  end if;
+
+  raise notice 'OK — compte invité sans entreprise : appel rejeté, aucune entreprise ni profil créé';
+end $$;
+
+rollback;
+
+begin;
+
+-- Comptable invité déjà rattaché (invited_at posé comme après une vraie invitation).
+update auth.users set invited_at = now() where id = 'a1000000-0000-0000-0000-0000000000c2';
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "a1000000-0000-0000-0000-0000000000c2", "role": "authenticated"}';
+
+do $$
+declare
+  v_entreprises_avant int;
+  v_retour uuid;
+begin
+  select count(*) into v_entreprises_avant from public.entreprises;
+
+  v_retour := public.creer_entreprise_et_ceo('Autre', 'Autre', 'Autre');
+
+  if v_retour is distinct from 'a0000000-0000-0000-0000-000000000001'::uuid then
+    raise exception 'IDEMPOTENCE ROMPUE pour un invité rattaché : retour %', v_retour;
+  end if;
+  if (select count(*) from public.entreprises) <> v_entreprises_avant then
+    raise exception 'ENTREPRISE CREEE pour un invité déjà rattaché';
+  end if;
+
+  raise notice 'OK — comptable invité déjà rattaché : appel idempotent (son entreprise, rien créé)';
+end $$;
+
+rollback;

@@ -5,22 +5,24 @@ import { cheminInterneSur } from "@/lib/redirection";
 
 const TYPES_ACCEPTES: EmailOtpType[] = ["signup", "invite", "recovery"];
 
+// 303 : le navigateur rejoue la destination en GET après ce POST.
 function vers(request: NextRequest, chemin: string) {
-  return NextResponse.redirect(new URL(chemin, request.url));
+  return NextResponse.redirect(new URL(chemin, request.url), 303);
 }
 
-// Les liens des e-mails (confirmation, invitation, réinitialisation) pointent
-// tous ici : le jeton est lu côté serveur et vérifié par Supabase Auth, ce qui
-// ouvre la session sans dépendre d'un jeton dans l'URL du navigateur.
-export async function GET(request: NextRequest) {
-  const params = request.nextUrl.searchParams;
-  const tokenHash = params.get("token_hash");
-  const type = params.get("type") as EmailOtpType | null;
+// Vérification du jeton, uniquement en POST : le lien de l'e-mail ouvre la page
+// /auth/confirm (GET), qui ne consomme rien ; seul le clic sur « Confirmer »
+// arrive ici. Un scanner ou un client de messagerie qui pré-ouvre le lien ne
+// peut donc plus consommer le jeton à usage unique.
+export async function POST(request: NextRequest) {
+  const formulaire = await request.formData();
+  const tokenHash = formulaire.get("token_hash");
+  const type = formulaire.get("type") as EmailOtpType | null;
   // `next` n'est suivi que s'il s'agit d'un chemin interne ; sinon on garde
   // la destination par défaut du type de lien.
-  const next = cheminInterneSur(params.get("next"));
+  const next = cheminInterneSur(typeof formulaire.get("next") === "string" ? (formulaire.get("next") as string) : null);
 
-  if (!tokenHash || !type || !TYPES_ACCEPTES.includes(type)) {
+  if (typeof tokenHash !== "string" || !tokenHash || !type || !TYPES_ACCEPTES.includes(type)) {
     return vers(request, `/auth/lien-invalide?type=${type && TYPES_ACCEPTES.includes(type) ? type : "inconnu"}`);
   }
 

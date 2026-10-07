@@ -26,9 +26,12 @@ export default async function Accueil() {
     redirect(accueilPourRole(contexte.role));
   }
 
-  // Compte authentifié sans profil : inscription confirmée mais entreprise non
-  // créée (étape interrompue). La fonction est idempotente : on la rejoue à
-  // partir des noms saisis à l'inscription (ils ne servent qu'à nommer).
+  // Compte authentifié sans profil. Si l'inscription a été confirmée sans que
+  // l'entreprise soit créée (étape interrompue), on rejoue la fonction
+  // idempotente à partir des noms saisis (ils ne servent qu'à nommer). Le refus
+  // des comptes issus d'une invitation est dans la fonction SQL elle-même : ici
+  // on affiche seulement le message qui en résulte.
+  const invite = Boolean(contexte.user.invited_at);
   const meta = contexte.user.user_metadata ?? {};
   if (typeof meta.nom_entreprise === "string" && meta.nom_entreprise.trim() !== "") {
     const supabase = await createClient();
@@ -45,9 +48,10 @@ export default async function Accueil() {
   return (
     <main style={{ padding: "2rem", maxWidth: 480, fontFamily: "system-ui, sans-serif" }}>
       <h1>Compte non rattaché</h1>
-      <p>
-        Votre compte n&apos;est rattaché à aucune entreprise. Si vous avez été invité(e), demandez à votre
-        gérant de vous renvoyer une invitation.
+      <p role="alert">
+        {invite
+          ? "Votre compte a été créé par invitation mais n'est rattaché à aucune entreprise : contactez votre gérant."
+          : "Votre compte n'est rattaché à aucune entreprise. Si vous avez été invité(e), demandez à votre gérant de vous renvoyer une invitation."}
       </p>
       <BoutonDeconnexion />
     </main>
