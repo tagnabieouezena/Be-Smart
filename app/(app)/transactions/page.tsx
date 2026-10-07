@@ -73,6 +73,7 @@ export default async function TransactionsPage({
 
       <FiltresTransactions categories={categories ?? []} utilisateurs={utilisateurs ?? []} />
 
+      <div style={{ overflowX: "auto", maxWidth: "100%" }}>
       <table>
         <thead>
           <tr>
@@ -99,6 +100,7 @@ export default async function TransactionsPage({
           ))}
         </tbody>
       </table>
+      </div>
 
       {estComptable && (
         <FormulaireSaisieTransaction
