@@ -48,7 +48,7 @@ Colonnes :
 - pour le résultat net : `resultat_variation` (en FCFA) **uniquement**, aucun pourcentage ;
 - `ca_cumul`, `depenses_cumul`, `resultat_cumul` : somme cumulative des mois renvoyés depuis janvier (fonction de fenêtre, en `numeric`). La dernière ligne alimente la ligne « Total année à date » de l'écran : aucune somme de montants n'est faite côté JavaScript.
 
-Règles de variation (toutes les variations sont `null` quand la comparaison n'a pas de sens, jamais 0 par défaut) :
+Règles de variation (toutes les variations sont `null` quand la comparaison n'a pas de sens, jamais 0 par défaut). Les règles 2 à 5 sont implémentées **une seule fois**, dans la fonction pure `variation_mensuelle` (voir §1 bis), que cette fonction appelle :
 1. **Janvier** : pas de mois précédent dans l'année demandée, donc toutes les variations sont `null`. Pas de comparaison avec décembre de l'année précédente (décision du 2026-10-13).
 2. **Mois sans aucune transaction, des deux côtés** : toutes les variations sont `null` si le mois courant **ou** le mois précédent a `a_activite = false`. Un mois vide signifie le plus souvent « pas encore saisi » : il n'est comparable ni comme référence ni comme point de comparaison (décision du 2026-10-13). Le mois vide reste présent dans le résultat, avec CA = dépenses = résultat = 0.
 3. **Mois précédent à 0 mais avec activité** (ex. CA précédent = 0 alors qu'il y a eu des dépenses) : la variation en FCFA est calculée, le pourcentage est `null` (pas de division par zéro, pas d'infini).
@@ -69,6 +69,22 @@ Sécurité (identique au 4.6, mêmes règles) :
 
 Aucun index à ajouter a priori : l'index `transactions (entreprise_id, date)` existe depuis le 4.6 ; à confirmer et à signaler dans la PR.
 
+### 1 bis. Fonctions pour le bandeau
+
+Deux fonctions, pour que le calcul du réel et les règles de variation n'existent qu'une fois.
+
+**`variation_mensuelle(courant, precedent, a_courant, a_precedent)`** : fonction **pure** (aucun accès aux tables, `immutable`) qui porte les règles 2, 3 et 4 et l'arrondi : renvoie la variation en FCFA et le pourcentage (2 décimales), tous deux `null` si l'un des deux mois est sans activité, et pourcentage `null` si le précédent vaut 0. `comparaison_mensuelle` et `comparaison_accueil` l'appellent toutes les deux : une seule règle dans tout le produit, aucun risque de divergence entre l'écran annuel et le bandeau. Elle naît elle aussi **sans droit d'exécution**, puis `grant execute` explicite à `authenticated` (les fonctions `security invoker` qui l'appellent s'exécutent avec les droits de l'appelant) ; aucun droit pour `public` ni `anon`. Elle ne lit aucune donnée, donc aucun risque d'isolation.
+
+**`comparaison_accueil(p_date_reference)`** : une ligne pour le CEO, **zéro ligne** pour tout autre rôle.
+- Elle détermine le dernier mois clos et le mois précédent (tableau ci-dessus), puis lit leur réel dans `ecarts_mensuels` pour les **une ou deux années** concernées (`ecarts_mensuels(N, date)` et, en février seulement, `ecarts_mensuels(N−1, date)`). Un mois absent du résultat vaut 0, avec `a_activite = false` (existence de transaction du mois, comme pour la fonction annuelle).
+- Colonnes : `annee_clos`, `mois_clos`, `annee_precedent`, `mois_precedent` ; `ca`, `depenses`, `resultat` du mois clos et leurs équivalents `*_precedent` ; `a_activite`, `a_activite_precedent` ; `ca_variation`, `ca_variation_pct`, `depenses_variation`, `depenses_variation_pct`, `resultat_variation` (FCFA seulement pour le résultat).
+- Mêmes règles de sécurité que `comparaison_mensuelle` : requête qui part de la CTE `ent` (CEO uniquement, filtre `current_entreprise_id()`), `security invoker`, `set search_path = public`, née sans droit d'exécution, `revoke execute … from public`, `grant execute` explicite à `authenticated` uniquement, ACL réelles verrouillées par assertion.
+
+**Pourquoi cette approche plutôt que les alternatives** :
+- *Appeler `comparaison_mensuelle` deux fois depuis l'application* : les règles de variation seraient recopiées en TypeScript, avec des montants manipulés en nombres JavaScript (flottants), contre la règle `numeric` du projet.
+- *Ajouter un paramètre à `comparaison_mensuelle` pour qu'elle compare janvier à décembre* : cela ferait disparaître la décision 5 (janvier sans variation sur le tableau annuel) en la rendant dépendante d'un drapeau.
+- *Fonction dédiée et fonction pure partagée* : un peu plus de SQL à relire, mais chaque règle a un seul endroit, et le test de cohérence (bandeau = ligne correspondante du tableau annuel, quand les deux mois sont dans la même année) prouve qu'elles ne divergent pas.
+
 ### 2. Écran dédié `/comparaison` (CEO)
 
 - Titre de l'écran suivi d'une ligne d'explication : « Base trésorerie : une facture compte au mois de son paiement. »
@@ -86,12 +102,17 @@ Le tableau de bord KPI (Module 4.11) n'existe pas encore, et l'accueil du CEO es
 
 Ce bandeau sera repris tel quel par le tableau de bord du 4.11.
 
-**Source des données** : la fonction est appelée pour l'année du dernier mois clos.
-- En règle générale (date de référence de mars à décembre), le dernier mois clos est dans l'année de référence : appel `comparaison_mensuelle(annee, date_reference)`, ligne du mois précédent le mois en cours.
-- **En janvier**, le dernier mois clos est décembre de l'année précédente : le bandeau appelle `comparaison_mensuelle(annee - 1, date_reference)` et compare décembre à novembre. Les 12 mois de l'année précédente sont alors tous `clos`.
-- **En février**, le dernier mois clos est janvier, qui n'a pas de variation (règle 1) : le bandeau affiche la valeur sans comparaison.
+**Règle de comparaison (décidé le 2026-10-13).** Le bandeau compare toujours le **dernier mois clos** au **mois calendaire qui le précède**, même si ce mois est dans l'année précédente. Le tableau annuel de `/comparaison` ne change pas : janvier y reste sans variation (décision 5).
 
-Si le dernier mois clos n'a pas de variation (règles 1 et 2, ou année précédente sans aucune donnée), le bandeau affiche la valeur sans flèche et la mention « Pas de comparaison ».
+| Date de référence | Dernier mois clos | Mois précédent | Années concernées |
+|---|---|---|---|
+| Janvier N | décembre N−1 | novembre N−1 | N−1 |
+| **Février N** | **janvier N** | **décembre N−1** | **N et N−1** |
+| Mars à décembre N | mois précédent le mois en cours | celui d'avant | N |
+
+Les règles de mois vide (règle 2 symétrique) s'appliquent : si l'un des deux mois n'a aucune transaction, le bandeau affiche la valeur du dernier mois clos sans flèche et la mention « Pas de comparaison ». Idem si le dernier mois clos n'a pas de variation pour une autre raison (aucune donnée du tout).
+
+**Source des données : fonction `comparaison_accueil(p_date_reference date default current_date)`** (voir §1 bis). Le bandeau fait un seul appel, sans aucun calcul côté JavaScript.
 
 ### 4. Sens des flèches (décidé le 2026-10-13)
 
@@ -151,7 +172,11 @@ Contrôles de cohérence, tous en `numeric` exact :
 
 Cas de l'accueil : avec cette date de référence, le bandeau compare avril (dernier mois clos) à mars : CA encaissé −300 000 FCFA (−100,0 %), Dépenses −60 000 FCFA (−50,0 %), Résultat net −240 000 FCFA. Mai n'est pas utilisé.
 
-**Cas de l'accueil en janvier** (second scénario, autre entreprise dédiée dans `BEGIN … ROLLBACK`). Date de référence `2027-01-15`. Transactions :
+**Cas du bandeau** (fonction `comparaison_accueil`). Chaque scénario ci-dessous utilise une **entreprise dédiée** dans `BEGIN … ROLLBACK`.
+
+*Cohérence avec le tableau annuel (scénario des cinq mois, mois de mars à décembre).* `comparaison_accueil('2026-05-20')` renvoie le dernier mois clos **avril 2026** comparé à mars : **identique** à la ligne d'avril du tableau annuel (CA −300 000 / −100,00 %, dépenses −60 000 / −50,00 %, résultat −240 000). Preuve que les deux fonctions appliquent la même règle.
+
+*Scénario 1 : date de référence en janvier (`2027-01-15`).* Transactions :
 
 | Mois | Transactions |
 |---|---|
@@ -160,26 +185,44 @@ Cas de l'accueil : avec cette date de référence, le bandeau compare avril (der
 | Décembre 2026 | entrée de 500 000 ; sortie de 120 000 |
 | Janvier 2027 (en cours) | entrée de 10 000 |
 
-Le bandeau appelle `comparaison_mensuelle(2026, '2027-01-15')` : 12 lignes, toutes `clos`, et lit la ligne de décembre. Attendus :
+Le bandeau compare décembre 2026 (dernier mois clos) à novembre 2026. Attendus :
 
-| Mois (2026) | CA encaissé | Dépenses | Résultat | Var. CA | Var. CA % | Var. dép. | Var. dép. % | Var. résultat |
+| Mois | CA encaissé | Dépenses | Résultat | Var. CA | Var. CA % | Var. dép. | Var. dép. % | Var. résultat |
 |---|---|---|---|---|---|---|---|---|
-| Novembre | 400 000 | 150 000 | 250 000 | `null` | `null` | `null` | `null` | `null` |
-| Décembre | 500 000 | 120 000 | 380 000 | +100 000 | +25,00 | −30 000 | −20,00 | +130 000 |
+| Décembre 2026 (bandeau) | 500 000 | 120 000 | 380 000 | +100 000 | +25,00 | −30 000 | −20,00 | +130 000 |
 
-- **Bandeau affiché** : CA encaissé 500 000 FCFA, « +100 000 FCFA (+25,0 %) vs mois précédent », ▲ hausse favorable ; Dépenses 120 000 FCFA, « −30 000 FCFA (−20,0 %) vs mois précédent », ▼ baisse favorable ; Résultat net 380 000 FCFA, « +130 000 FCFA vs mois précédent », ▲ hausse favorable.
-- Novembre a des variations `null` (octobre est sans transaction, règle 2) ; décembre est comparé à novembre.
-- L'entrée de 10 000 de janvier 2027 n'intervient pas dans le bandeau (mois en cours).
-- Contre-preuve : `comparaison_mensuelle(2027, '2027-01-15')` renvoie une seule ligne (janvier 2027, `en_cours`, toutes variations `null`, CA = 10 000).
+Affichage : CA encaissé 500 000 FCFA, « +100 000 FCFA (+25,0 %) vs mois précédent », ▲ hausse favorable ; Dépenses 120 000 FCFA, « −30 000 FCFA (−20,0 %) vs mois précédent », ▼ baisse favorable ; Résultat net 380 000 FCFA, « +130 000 FCFA vs mois précédent », ▲ hausse favorable. L'entrée de 10 000 de janvier 2027 n'intervient pas (mois en cours). Ce résultat est identique à la ligne de décembre de `comparaison_mensuelle(2026, '2027-01-15')` (12 lignes, toutes `clos`), dont la ligne de novembre a des variations `null` (octobre vide).
+
+*Scénario 2 : date de référence en février (`2027-02-10`), deux années concernées.* Transactions :
+
+| Mois | Transactions |
+|---|---|
+| Décembre 2026 | entrée de 300 000 ; sortie de 200 000 |
+| Janvier 2027 | entrée de 450 000 ; sortie de 180 000 |
+| Février 2027 (en cours) | entrée de 5 000 |
+
+Le bandeau compare **janvier 2027** (dernier mois clos) à **décembre 2026** (année précédente). Attendus :
+
+| Mois | CA encaissé | Dépenses | Résultat | Var. CA | Var. CA % | Var. dép. | Var. dép. % | Var. résultat |
+|---|---|---|---|---|---|---|---|---|
+| Janvier 2027 (bandeau) | 450 000 | 180 000 | 270 000 | +150 000 | +50,00 | −20 000 | −10,00 | +170 000 |
+
+Précédent (décembre 2026) : 300 000 / 200 000 / 100 000, `a_activite_precedent = true`. Affichage : ▲ CA +50,0 % (+150 000 FCFA), ▼ Dépenses −10,0 % (−20 000 FCFA), ▲ Résultat +170 000 FCFA, tous favorables. L'entrée de 5 000 de février n'intervient pas.
+
+Contraste voulu avec le tableau annuel, qui ne change pas (décision 5) : `comparaison_mensuelle(2027, '2027-02-10')` renvoie deux lignes. **Janvier 2027** : 450 000 / 180 000 / 270 000, **toutes variations `null`** (pas de comparaison avec décembre dans le tableau annuel). **Février 2027** (en cours, « à date ») : 5 000 / 0 / 5 000, variations −445 000 (−98,89 %), −180 000 (−100,00 %), −265 000.
+
+*Scénario 3 : « décembre vide » (`2027-02-10`).* Transactions : janvier 2027 seulement, entrée de 450 000 et sortie de 180 000 ; rien en décembre 2026. Attendus du bandeau : janvier 2027 = 450 000 / 180 000 / 270 000, `a_activite = true`, `a_activite_precedent = false`, **toutes les variations `null`** : le bandeau affiche les valeurs sans flèche et la mention « Pas de comparaison » (règle 2 symétrique, y compris à cheval sur deux années).
 
 ### 6. Tests adversariaux (obligatoires, en utilisateur authentifié réel, jamais en `service_role`)
 
-1. Le **comptable** de l'entreprise appelle `comparaison_mensuelle` : **zéro ligne**, alors que ses transactions lui sont lisibles. C'est la preuve que la restriction au CEO vient de la fonction.
+Les cinq premiers tests s'appliquent **à chacune des deux fonctions** de lecture, `comparaison_mensuelle` et `comparaison_accueil` (la fonction auxiliaire `variation_mensuelle` ne lit aucune donnée : seuls ses droits d'exécution sont vérifiés, au test 5).
+
+1. Le **comptable** de l'entreprise les appelle : **zéro ligne**, alors que ses transactions lui sont lisibles. C'est la preuve que la restriction au CEO vient des fonctions elles-mêmes.
 2. Le compte de **supervision Be Smart** : zéro ligne.
-3. Le CEO de l'**entreprise B** (avec ses propres transactions) appelle la fonction pour la même année : il ne voit que ses chiffres, rien de A. Le CEO de A ne voit rien de B.
-4. **`anon`** : appel refusé (`permission denied`).
-5. ACL réelles de la fonction : aucun droit pour `public` ni `anon`, droit d'exécution pour `authenticated` ; assertion verrouillée dans le script, et audit d'isolation vert.
-6. Le CEO d'une entreprise **sans aucune transaction** obtient les mois jusqu'au mois de référence, tous à 0, `a_activite = false` partout, **toutes les variations `null`, dès janvier** (règles 1 et 2 : aucun mois n'est comparable à un autre). Aucune division par zéro.
+3. Le CEO de l'**entreprise B** (avec ses propres transactions) les appelle pour la même période : il ne voit que ses chiffres, rien de A (y compris dans le bandeau). Le CEO de A ne voit rien de B.
+4. **`anon`** : appel refusé (`permission denied`), pour les deux fonctions.
+5. ACL réelles des **trois** fonctions (`comparaison_mensuelle`, `comparaison_accueil`, `variation_mensuelle`) : aucun droit pour `public` ni `anon`, droit d'exécution pour `authenticated` ; assertion verrouillée dans le script, et audit d'isolation vert.
+6. Le CEO d'une entreprise **sans aucune transaction** obtient, pour `comparaison_mensuelle`, les mois jusqu'au mois de référence, tous à 0, `a_activite = false` partout, **toutes les variations `null`, dès janvier** (règles 1 et 2 : aucun mois n'est comparable à un autre) ; pour `comparaison_accueil`, une ligne à 0 avec toutes les variations `null`. Aucune division par zéro.
 
 ## Hors de ce module
 
@@ -194,9 +237,9 @@ Le bandeau appelle `comparaison_mensuelle(2026, '2027-01-15')` : 12 lignes, tout
 ## Livrable attendu pour revue
 
 PR depuis `feat/module-4.7-comparaison-mensuelle` vers `main`, avec :
-- le SQL complet de la migration en clair dans la description (fonction, GRANT, éventuel index) ;
+- le SQL complet de la migration en clair dans la description (les trois fonctions, GRANT, éventuel index) ;
 - le résultat réel du jeu de test, ligne par ligne, comparé aux attendus ci-dessus ;
-- la preuve des six tests adversariaux ;
+- la preuve des six tests adversariaux, pour les deux fonctions de lecture ;
 - les captures de l'écran `/comparaison` et du bandeau, en version bureau et mobile ;
 - CI verte.
 
@@ -204,11 +247,12 @@ PR depuis `feat/module-4.7-comparaison-mensuelle` vers `main`, avec :
 
 1. **Flèches** : la flèche suit le sens de la variation (▲ hausse, ▼ baisse, « = » stable), la couleur suit le caractère favorable (une hausse des dépenses est défavorable), toujours avec signe et libellé.
 2. **Libellés** : « CA encaissé » et « Résultat net », avec une ligne d'explication sous le titre de l'écran (base trésorerie, une facture compte au mois de son paiement).
-3. **Accueil** : bandeau provisoire en haut de `/ecarts`, repris ensuite par le tableau de bord 4.11.
+3. **Accueil** : bandeau provisoire en haut de `/ecarts`, repris ensuite par le tableau de bord 4.11. Il compare toujours le dernier mois clos au mois calendaire précédent, même dans l'année précédente (en février : janvier contre décembre) ; voir la décision 8.
 4. **Graphique** : option A, SVG écrit à la main en composant serveur, sans dépendance. Recharts écarté.
-5. **Janvier** : aucune variation (pas de comparaison avec décembre de l'année précédente dans l'écran annuel). Le bandeau d'accueil, lui, compare décembre à novembre quand la date de référence est en janvier (§3).
+5. **Janvier** : aucune variation, **uniquement sur le tableau annuel de `/comparaison`** (pas de comparaison avec décembre de l'année précédente dans ce tableau). Cette décision ne concerne pas le bandeau d'accueil (décision 8).
 6. **Mois vide** : pas de comparaison, des deux côtés (règle 2).
 7. **Ligne « Total année à date »** : ajoutée sous le tableau, vérifiée par le test (590 000 / 410 000 / 180 000).
+8. **Bandeau d'accueil à cheval sur deux années** : il compare toujours le dernier mois clos au mois calendaire précédent, y compris dans l'année précédente (en février, janvier N contre décembre N−1). Les règles de mois vide s'appliquent des deux côtés. Réalisé par la fonction `comparaison_accueil` et la fonction pure `variation_mensuelle` (§1 bis).
 
 ## Décisions ouvertes pour Ouezz
 
