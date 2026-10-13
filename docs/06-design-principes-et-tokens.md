@@ -67,7 +67,7 @@
   --color-focus: #4f46e5;            /* 6.29:1 sur fond */
 
   /* Typographie */
-  --police-texte: var(--font-inter), system-ui, -apple-system, "Segoe UI", sans-serif; /* --font-inter fournie par next/font */
+  --police-texte: var(--font-inter, system-ui), -apple-system, "Segoe UI", sans-serif; /* --font-inter fournie par next/font ; repli dans var() : sans --font-inter, une déclaration var() sans valeur de repli devient invalide et le navigateur ignore toute la pile */
   --police-chiffres: var(--police-texte); /* tabular-nums activé sur les montants */
   --taille-base: 15px;
   --taille-petite: 13px;
