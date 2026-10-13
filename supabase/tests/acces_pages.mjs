@@ -58,13 +58,13 @@ async function page(chemin, session) {
   return { status: reponse.status, location: reponse.headers.get("location"), texte };
 }
 
-const PAGES = ["/ecarts", "/budgets", "/transactions", "/creances", "/parametrage", "/utilisateurs", "/supervision"];
+const PAGES = ["/ecarts", "/comparaison", "/budgets", "/transactions", "/creances", "/parametrage", "/utilisateurs", "/supervision"];
 
 // Statut attendu de chaque page, par rôle.
 const ATTENDU = {
-  ceo: { "/ecarts": 200, "/budgets": 200, "/transactions": 200, "/creances": 200, "/parametrage": 200, "/utilisateurs": 200, "/supervision": 404 },
-  comptable: { "/ecarts": 404, "/budgets": 404, "/transactions": 200, "/creances": 200, "/parametrage": 404, "/utilisateurs": 404, "/supervision": 404 },
-  supervision: { "/ecarts": 404, "/budgets": 404, "/transactions": 404, "/creances": 404, "/parametrage": 404, "/utilisateurs": 404, "/supervision": 200 },
+  ceo: { "/ecarts": 200, "/comparaison": 200, "/budgets": 200, "/transactions": 200, "/creances": 200, "/parametrage": 200, "/utilisateurs": 200, "/supervision": 404 },
+  comptable: { "/ecarts": 404, "/comparaison": 404, "/budgets": 404, "/transactions": 200, "/creances": 200, "/parametrage": 404, "/utilisateurs": 404, "/supervision": 404 },
+  supervision: { "/ecarts": 404, "/comparaison": 404, "/budgets": 404, "/transactions": 404, "/creances": 404, "/parametrage": 404, "/utilisateurs": 404, "/supervision": 200 },
 };
 
 const COMPTES = {
@@ -100,13 +100,38 @@ for (const [role, cible] of [["ceo", "/ecarts"], ["comptable", "/transactions"],
 
 // 4. Barre de navigation : liens affichés par rôle.
 for (const [role, chemin, liens, absents] of [
-  ["comptable", "/transactions", ["/transactions", "/creances"], ["/ecarts", "/budgets", "/parametrage", "/utilisateurs"]],
-  ["ceo", "/ecarts", ["/ecarts", "/budgets", "/transactions", "/creances", "/parametrage", "/utilisateurs"], ["/supervision"]],
+  ["comptable", "/transactions", ["/transactions", "/creances"], ["/ecarts", "/comparaison", "/budgets", "/parametrage", "/utilisateurs"]],
+  ["ceo", "/ecarts", ["/ecarts", "/comparaison", "/budgets", "/transactions", "/creances", "/parametrage", "/utilisateurs"], ["/supervision"]],
 ]) {
   const { texte } = await page(chemin, sessions[role]);
   const nav = texte.match(/<nav[\s\S]*?<\/nav>/)?.[0] ?? "";
   verifier(`barre ${role} : liens présents`, liens.every((l) => nav.includes(`href="${l}"`)));
   verifier(`barre ${role} : liens absents`, absents.every((l) => !nav.includes(`href="${l}"`)));
+}
+
+// 4 bis. Module 4.7 : bandeau des trois indicateurs en haut de /ecarts (CEO) et
+//        écran /comparaison. Le seed du CEO A n'a qu'une transaction en septembre
+//        2026 : le dernier mois clos n'a donc jamais de mois précédent actif en
+//        même temps (« Pas de comparaison »), quelle que soit la date du jour.
+//        Les valeurs chiffrées sont prouvées par supabase/tests/comparaison_mensuelle.sql.
+{
+  const ecarts = await page("/ecarts", sessions.ceo);
+  const texte = ecarts.texte.replace(/&#x27;/g, "'");
+  verifier("bandeau présent en haut de /ecarts pour le CEO", ecarts.status === 200 && texte.includes("comparé à") && texte.includes("CA encaissé") && texte.includes("Résultat net"));
+  verifier("bandeau : « Pas de comparaison » quand un des deux mois est vide", texte.includes("Pas de comparaison"));
+  verifier("bandeau : place avant le titre du suivi des écarts", texte.indexOf("CA encaissé") < texte.indexOf("Suivi des écarts"));
+
+  const compa = await page("/comparaison", sessions.ceo);
+  const texteCompa = compa.texte.replace(/&#x27;/g, "'");
+  verifier("/comparaison : explication « base trésorerie » sous le titre", texteCompa.includes("Base trésorerie : une facture compte au mois de son paiement."));
+  verifier("/comparaison : libellés « CA encaissé » et « Résultat net »", texteCompa.includes("CA encaissé") && texteCompa.includes("Résultat net"));
+  verifier("/comparaison : ligne « Total année à date » et mention « à date »", texteCompa.includes("Total année à date") && texteCompa.includes("à date"));
+  verifier("/comparaison : graphique SVG accessible (titre et résumé)", compa.texte.includes('role="img"') && compa.texte.includes("graphique-titre") && compa.texte.includes("graphique-resume"));
+  verifier("/comparaison : tableau dans un conteneur à défilement horizontal", compa.texte.includes("tableau-defilant"));
+  const futur = await page(`/comparaison?annee=${new Date().getFullYear() + 5}`, sessions.ceo);
+  verifier("/comparaison : année future non proposée (retombe sur l'année en cours)", futur.status === 200 && !futur.texte.includes(`<option value="${new Date().getFullYear() + 5}"`));
+  const bandeauComptable = await page("/ecarts", sessions.comptable);
+  verifier("bandeau absent pour le comptable (404)", bandeauComptable.status === 404);
 }
 
 // 5. Rapprochement en comptable : la lecture des lignes de revenu prévu (RLS
@@ -143,7 +168,7 @@ const LIGNE = "a6000000-0000-0000-0000-000000000001";
 //    ou affiche « Compte non rattaché » ; `next` est suivi seulement s'il est
 //    interne et autorisé pour le rôle.
 const MOT_PROSCRIT = "g\u00e9rant"; // écrit en échappement pour garder `grep -ri` vide dans le dépôt
-const MODULES = ["/ecarts", "/budgets", "/transactions", "/creances", "/parametrage", "/utilisateurs"];
+const MODULES = ["/ecarts", "/comparaison", "/budgets", "/transactions", "/creances", "/parametrage", "/utilisateurs"];
 {
   const echec = await page("/auth/lien-invalide?type=signup-echec", null);
   verifier("signup-echec : bouton « Réessayer » vers /", echec.texte.includes("Réessayer") && /href="\/"/.test(echec.texte));
