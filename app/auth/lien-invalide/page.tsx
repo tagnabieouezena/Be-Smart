@@ -3,7 +3,7 @@ import Link from "next/link";
 const MESSAGES: Record<string, { titre: string; texte: string }> = {
   invite: {
     titre: "Ce lien n'est plus valide",
-    texte: "Demandez à votre gérant de vous renvoyer une invitation.",
+    texte: "Demandez à la personne qui vous a invité(e) de vous renvoyer une invitation.",
   },
   signup: {
     titre: "Ce lien n'est plus valide",

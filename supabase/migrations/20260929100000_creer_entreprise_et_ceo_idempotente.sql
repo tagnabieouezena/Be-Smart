@@ -60,7 +60,7 @@ begin
   select email, invited_at into v_email, v_invited_at from auth.users where id = auth.uid();
 
   if v_invited_at is not null then
-    raise exception 'Votre compte a été créé par invitation mais n''est rattaché à aucune entreprise : contactez votre gérant.';
+    raise exception 'Votre compte a été créé par invitation mais n''est rattaché à aucune entreprise : contactez la personne qui vous a invité(e).';
   end if;
 
   insert into public.entreprises (nom, secteur, devise)

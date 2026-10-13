@@ -122,7 +122,7 @@ begin
     raise exception 'GARDE-FOU ROMPU : un compte issu d''une invitation, sans entreprise, a pu en créer une';
   exception
     when others then
-      if sqlerrm not like '%créé par invitation%contactez votre gérant%' then
+      if sqlerrm not like '%créé par invitation%contactez la personne qui vous a invité(e)%' then
         raise exception 'ECHEC INATTENDU (orphelin invité) : %', sqlerrm;
       end if;
       raise notice 'ORPHELIN INVITE : rejeté — "%"', sqlerrm;
