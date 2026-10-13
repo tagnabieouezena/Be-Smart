@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { exigerRole } from "@/lib/acces";
 import { createClient } from "@/lib/supabase/server";
+import { BandeauVariations, type LigneBandeau } from "@/components/bandeau-variations";
 
 type LigneEcart = {
   mois: number;
@@ -134,12 +135,19 @@ export default async function EcartsPage({
       ? anneeDemandee
       : anneeEnCours;
 
+  // Bandeau provisoire (repris par le tableau de bord du Module 4.11) : dernier mois clos
+  // comparé au mois calendaire précédent, calculé par la base.
+  const { data: bandeau } = await supabase.rpc("comparaison_accueil");
+  const ligneBandeau = ((bandeau ?? []) as LigneBandeau[])[0];
+
   const { data, error } = await supabase.rpc("ecarts_mensuels", { p_annee: annee });
   const lignes = (data ?? []) as LigneEcart[];
   const moisSoldeNegatif = lignes.filter((l) => l.alerte_solde_negatif);
 
   return (
     <main style={{ padding: "2rem", fontFamily: "system-ui, sans-serif" }}>
+      {ligneBandeau && <BandeauVariations ligne={ligneBandeau} />}
+
       <h1>Suivi des écarts — Prévu vs Réel</h1>
 
       <form method="get" style={{ display: "flex", gap: "0.5rem", alignItems: "center", margin: "1rem 0" }}>
