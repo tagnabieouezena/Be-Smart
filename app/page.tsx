@@ -50,8 +50,8 @@ export default async function Accueil() {
       <h1>Compte non rattaché</h1>
       <p role="alert">
         {invite
-          ? "Votre compte a été créé par invitation mais n'est rattaché à aucune entreprise : contactez votre gérant."
-          : "Votre compte n'est rattaché à aucune entreprise. Si vous avez été invité(e), demandez à votre gérant de vous renvoyer une invitation."}
+          ? "Votre compte a été créé par invitation, mais il n'est rattaché à aucune entreprise. Contactez la personne qui vous a invité(e)."
+          : "Votre compte n'est rattaché à aucune entreprise. Si vous avez été invité(e), demandez à la personne qui vous a invité(e) de vous renvoyer l'invitation."}
       </p>
       <BoutonDeconnexion />
     </main>
