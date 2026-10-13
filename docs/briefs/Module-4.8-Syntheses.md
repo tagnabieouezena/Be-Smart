@@ -1,6 +1,6 @@
 # Brief Claude Code — Module 4.8 : Synthèses mensuelle, trimestrielle et annuelle
 
-*Depuis `main` (Modules 4.1 à 4.7 et navigation mergés ; accueil du CEO = `/ecarts`). Branche : `feat/module-4.8-syntheses`.*
+*Depuis `main` (Modules 4.1 à 4.7 et navigation mergés ; accueil du CEO = `/ecarts`) **et le prérequis `docs/briefs/Solde-Initial-Date.md` implémenté et mergé** (solde de caisse initial daté, règle unique du solde). Branche : `feat/module-4.8-syntheses`.*
 
 ## Objectif (CDC 4.8)
 
@@ -12,12 +12,12 @@ Ancien onglet Excel « Synthese_Mensuelle » (CDC 2.3) : « Regroupe les résult
 
 **Accès réservé au CEO** (CDC 3.2 : le comptable n'a pas accès aux indicateurs stratégiques ; les objectifs de CA sont réservés au CEO, y compris en lecture). Le comptable et la supervision Be Smart n'y ont aucun accès.
 
-Module en **lecture seule** : aucune nouvelle table, aucune écriture, aucune nouvelle policy RLS. Les objectifs et le solde initial continuent de se saisir dans le Paramétrage (4.2).
+Module en **lecture seule** : aucune nouvelle table, aucune écriture, aucune nouvelle policy RLS. Les objectifs et le solde initial daté continuent de se saisir dans le Paramétrage (4.2, modifié par le prérequis).
 
 ## Ce qui existe déjà et doit être réutilisé (rien n'est recalculé)
 
 - **Le réel de chaque mois** (CA encaissé, dépenses, résultat net, statut clos / en cours, mois avec ou sans transaction) vient de `comparaison_mensuelle(p_annee, p_date_reference)` (4.7), qui le lit lui-même dans `ecarts_mensuels` (4.6). Le trimestre et l'année sont **des sommes de ces mois**, faites en SQL en `numeric` : aucune nouvelle règle de calcul du réel.
-- **Les soldes de caisse** viennent de `ecarts_mensuels` (`solde_debut`, `solde_fin_reel`) : une seule règle du solde dans tout le produit (voir « Solde de caisse »).
+- **La règle du solde de caisse** : la fonction `solde_caisse_a(date)` du prérequis (solde à la **fin** d'une journée, à partir du solde initial daté). Une seule règle du solde dans tout le produit : `ecarts_mensuels` (4.6) l'appelle déjà, le 4.8 l'appelle aussi, sans la recopier (voir « Solde de caisse »).
 - **Les objectifs** viennent de la table `objectifs_ca` (4.2), lue sous RLS (CEO uniquement). C'est la seule donnée nouvelle lue par ce module.
 - Côté application : `lib/format.ts` (montants FCFA, vrai signe moins, espaces insécables), `exigerRole()`, la barre de navigation par rôle, le conteneur de tableau défilant (`.tableau-defilant`, avec `position: relative`, leçon du 4.7).
 
@@ -51,20 +51,16 @@ Pour chaque période (mois, trimestre, année) :
 
 ### Solde de caisse en début et fin de période
 
-**Constat sur le stockage.** Le solde initial est la colonne `entreprises.solde_initial` (`numeric not null default 0`, Phase 0), éditée dans le Paramétrage. **Aucune date n'y est attachée.** `ecarts_mensuels` (4.6) calcule le solde ainsi : `solde_initial` + résultat net de **toutes** les transactions antérieures au mois, quelle que soit leur date. Conséquences, à connaître :
-- une « transaction antérieure à la date du solde initial » **n'existe pas comme cas détectable** : toute transaction compte, il n'y a pas de date de coupure. La saisie rétroactive d'anciennes transactions **après** avoir saisi un solde de caisse « d'aujourd'hui » double-compte donc ces mouvements. Risque traité par la décision produit n° 4 ;
-- un solde initial « absent » ne se distingue pas d'un solde à 0 (valeur par défaut) ;
-- un solde initial **négatif** est accepté par la base (aucune contrainte) et se propage tel quel ;
-- un solde peut devenir négatif en cours d'année (le résultat net cumulé dépasse le solde disponible) : il s'affiche avec son vrai signe moins **et** la mention « solde négatif » (jamais la couleur seule), sans bandeau d'alerte (décision produit n° 7).
+Le prérequis `Solde-Initial-Date` rend le solde initial **daté** : `entreprises.solde_initial` est le solde de caisse **à la fin de la journée** `entreprises.date_solde_initial`, et la fonction `solde_caisse_a(p_date)` donne le solde à la fin de n'importe quelle journée (une seule règle, valable avant comme après la date du solde, sans double comptage quel que soit l'ordre de saisie). Ce module **ne recalcule pas** cette règle :
 
-**Règles du module** (aucune nouvelle règle de calcul du solde) :
-1. `solde_debut` d'un mois **actif** (budget ou transaction) et `solde_fin` = `solde_fin_reel` : lus dans `ecarts_mensuels`.
-2. Un mois **sans activité** n'a pas de ligne dans `ecarts_mensuels` : son solde de début est le solde de fin du mois précédent, et son solde de fin est égal à son solde de début (résultat nul).
-3. Les mois sans activité **en tête d'année** reprennent le solde d'ouverture de l'année : le `solde_debut` du premier mois actif de l'année (les mois vides avant lui ont un résultat nul, donc le solde ne bouge pas).
-4. Une année **sans aucun mois actif** (aucune transaction ni budget) n'a aucune ligne dans `ecarts_mensuels` : son solde d'ouverture est le `solde_fin_reel` du **dernier mois actif de la dernière année antérieure** qui en a un (lu dans `ecarts_mensuels` de cette année-là), et, s'il n'existe aucune année antérieure avec activité, `entreprises.solde_initial`. Ainsi le solde se reporte correctement sur des années vides et au début d'une nouvelle année, sans recopier la règle du 4.6 (choix technique T3).
-5. **Trimestre** : `solde_debut` = solde de début de son premier mois affiché, `solde_fin` = solde de fin de son dernier mois affiché (« à date » pour le trimestre en cours). **Année** : début de janvier, fin du dernier mois affiché.
+1. **Solde d'ouverture de l'année** = `solde_caisse_a(31 décembre de l'année précédente)`, valable pour toute année (avec ou sans activité, antérieure ou postérieure à la date du solde).
+2. **Solde de début d'un mois** = solde d'ouverture de l'année + somme des résultats nets des mois précédents de l'année ; **solde de fin** = solde de début + résultat net du mois. Un mois sans transaction a un résultat nul : son solde de fin est son solde de début. Par l'identité de continuité du prérequis, ces soldes sont exactement `solde_caisse_a(veille du 1er du mois)` et `solde_caisse_a(dernier jour du mois)`, et égaux aux `solde_debut` / `solde_fin_reel` de `ecarts_mensuels` pour les mois actifs.
+3. **Trimestre** : `solde_debut` = solde de début de son premier mois affiché, `solde_fin` = solde de fin de son dernier mois affiché (« à date » pour le trimestre en cours). **Année** : début de janvier, fin du dernier mois affiché.
+4. Le solde d'une année **entièrement vide** (aucune transaction ni budget) est donc simplement `solde_caisse_a(…)` reporté : aucune règle de report ni lecture d'une autre année n'est nécessaire.
 
-**Identités à prouver par test, à chaque granularité** : `solde_fin = solde_debut + résultat` ; **continuité** : le solde de fin d'une période est le solde de début de la suivante (mois → mois, trimestre → trimestre, année N → année N+1, y compris à travers une année vide).
+**Identités à prouver par test, à chaque granularité** : `solde_fin = solde_debut + résultat` ; **continuité** : le solde de fin d'une période est le solde de début de la suivante (mois → mois, trimestre → trimestre, année N → année N+1, y compris à travers une année vide) ; et, pour chaque mois, égalité avec `solde_caisse_a` à ses deux bornes.
+
+Cas particuliers (la date du solde est un fait du prérequis, pas de ce module) : un solde initial **négatif** ou un solde qui **devient négatif** s'affiche avec son vrai signe moins **et** la mention « solde négatif » (jamais la couleur seule), sans bandeau d'alerte (décision produit n° 7) ; les mois **antérieurs à la date du solde** ont un solde reconstitué en remontant le temps et sont affichés comme les autres.
 
 ## Étapes attendues
 
@@ -107,9 +103,9 @@ Aucun nouvel index : `transactions_date_idx (entreprise_id, date)` (4.4) sert le
 - `exigerRole(["ceo"], "/syntheses")` : 404 pour le comptable et la supervision. Lien « **Synthèses** » ajouté à la barre du **CEO uniquement** (après « Comparaison »), et `/syntheses` ajouté aux pages autorisées du CEO dans `lib/redirection.ts`.
 - Formatage : montants en FCFA entiers avec espaces insécables et vrai signe moins (`lib/format.ts` existant) ; le taux, déjà tronqué à 1 décimale en base, s'affiche sans arrondi supplémentaire ; **aucun calcul** côté TypeScript (ni somme, ni taux, ni verdict).
 
-### 3. Libellé du solde initial dans le Paramétrage (petit ajout)
+### 3. Paramétrage : rien à modifier ici
 
-Conséquence de la décision produit n° 4 : sur l'écran `/parametrage`, le champ « Solde de caisse initial » est renommé **« Solde de caisse avant votre première transaction saisie »**, avec une ligne d'aide : « Toutes les transactions saisies s'ajoutent à ce montant, quelle que soit leur date. Si vous saisissez aussi d'anciennes transactions, indiquez le solde d'avant la plus ancienne. » Aucun changement de schéma ni de calcul.
+La saisie du solde de caisse **et de sa date** est faite par le prérequis (`Solde-Initial-Date`, étape 3). Ce module n'ajoute aucun champ ni aucun libellé au Paramétrage ; l'écran `/syntheses` renvoie simplement vers `/parametrage` pour les objectifs et pour le solde de caisse daté.
 
 ## Jeu de test chiffré (obligatoire)
 
@@ -117,9 +113,9 @@ Chaque scénario s'exécute dans `BEGIN … ROLLBACK`, avec une **entreprise dé
 
 ### Scénario 1 — année complète 2026, `syntheses_periodes(2026, '2027-01-15')`
 
-Entreprise `Syn1`, **solde initial 100 000**.
+Entreprise `Syn1`, **solde de caisse 100 000 à la fin du 30 novembre 2025** (`solde_initial = 100 000`, `date_solde_initial = 2025-11-30`) : aucune transaction avant cette date, donc les soldes sont ceux d'un solde « d'avant la première saisie ».
 
-Transactions (CA = entrées, dépenses = sorties ; le mois de décembre 2025 est **antérieur** à l'année affichée) :
+Transactions (CA = entrées, dépenses = sorties ; décembre 2025 est **postérieur** à la date du solde et **antérieur** à l'année affichée) :
 
 | Mois | CA | Dépenses |
 |---|---|---|
@@ -170,7 +166,7 @@ Ce que le scénario prouve :
 - **Granularités indépendantes** : les objectifs mensuels de T1 (180 000 + 150 000 + 0) ne somment pas à l'objectif trimestriel (400 000) ; chaque niveau garde le sien.
 - **Mois vide** (avril) : présent, à 0, `a_activite` faux, solde de fin = solde de début (−40 000). Le trimestre T2 est « avec activité » grâce à mai et juin.
 - **Solde qui devient négatif** : −40 000 à la fin de mars (et de T1), repris en avril, redevenu positif en mai.
-- **Transaction antérieure** : celle de décembre 2025 (+40 000 −90 000 = −50 000) fait passer le solde d'ouverture de 2026 de 100 000 à **50 000** (100 000 − 50 000) ; c'est le seul sens que prend « transaction antérieure » tant que le solde initial n'a pas de date (voir « Solde de caisse »).
+- **Solde daté** : le solde de 100 000 est celui de la fin du 30 novembre 2025 ; décembre 2025 (+40 000 −90 000 = −50 000) le ramène à 50 000 au 31 décembre, solde d'ouverture de 2026 (`solde_caisse_a('2025-12-31')`).
 - **Cohérences** (toutes en `numeric` exact) : somme des 12 CA = somme des 4 trimestres = CA de l'année = 2 040 000 ; dépenses 1 380 000 ; résultat 660 000 = 2 040 000 − 1 380 000 ; **identité** `solde_fin = solde_debut + résultat` sur chacune des 17 lignes ; **continuité** : fin du mois n = début du mois n+1 (11 paires), fin de T1 = début de T2, fin de T2 = début de T3, fin de T3 = début de T4, et solde de fin de l'année (710 000) = solde de fin de T4 = solde de fin de décembre ; les CA, dépenses et résultats mensuels sont identiques à ceux de `comparaison_mensuelle(2026, '2027-01-15')` (4.7), et le CA de l'année est identique à son `ca_cumul` de décembre.
 
 ### Scénario 2 — même entreprise, année en cours « à date » : `syntheses_periodes(2026, '2026-08-20')`
@@ -192,13 +188,13 @@ Ce que le scénario prouve : un trimestre en cours (T3) et l'année en cours son
 |---|---|
 | `syntheses_periodes(2025, …)` | janvier à novembre 2025 : `a_activite` faux, CA, dépenses, résultat à 0, solde 100 000 → 100 000 ; décembre : CA 40 000, dépenses 90 000, résultat −50 000, solde 100 000 → 50 000 ; T1 à T3 à 0 (solde 100 000 → 100 000) ; T4 : 40 000 / 90 000 / −50 000, solde 100 000 → 50 000 ; année 2025 : 40 000 / 90 000 / −50 000, solde 100 000 → **50 000** ; objectifs `absent` partout |
 | `syntheses_periodes(2026, …)` | scénario 1 : solde d'ouverture 2026 = **50 000** = solde de fin 2025 |
-| `syntheses_periodes(2027, …)` | janvier 2027 `en_cours`, `a_activite` faux, 0 / 0 / 0, solde **710 000 → 710 000** (report du solde de fin 2026 sur une année sans aucune saisie, règle 4) ; T1 et année `en_cours`, solde 710 000 → 710 000 |
-| `syntheses_periodes(2024, …)` | année **entièrement vide** et antérieure à toute activité : 12 mois à 0, `a_activite` faux, solde **100 000 → 100 000** partout (aucune année antérieure avec activité : retombée sur `solde_initial`), année 2024 : 0 / 0 / 0, solde 100 000 → 100 000 |
+| `syntheses_periodes(2027, …)` | janvier 2027 `en_cours`, `a_activite` faux, 0 / 0 / 0, solde **710 000 → 710 000** (report du solde de fin 2026 sur une année sans aucune saisie, `solde_caisse_a('2026-12-31')`) ; T1 et année `en_cours`, solde 710 000 → 710 000 |
+| `syntheses_periodes(2024, …)` | année **entièrement vide** et antérieure à toute activité : 12 mois à 0, `a_activite` faux, solde **100 000 → 100 000** partout (`solde_caisse_a('2023-12-31')` : le solde remonte à 100 000 car aucune transaction n'existe entre cette date et le 30 novembre 2025), année 2024 : 0 / 0 / 0, solde 100 000 → 100 000 |
 | `syntheses_periodes(2028, '2027-01-15')` | année future : **zéro ligne** |
 
 Continuité prouvée par test : fin de décembre 2025 (50 000) = début de janvier 2026 ; fin de l'année 2025 = début de l'année 2026 ; fin de l'année 2026 (710 000) = début de l'année 2027 ; fin de 2024 = début de 2025 (100 000).
 
-### Scénario 4 — bords de l'objectif (entreprise `Syn2`, solde initial 0, `syntheses_periodes(2026, '2026-04-15')`)
+### Scénario 4 — bords de l'objectif (entreprise `Syn2`, solde initial 0 à la date par défaut, `syntheses_periodes(2026, '2026-04-15')`)
 
 Aucune dépense. CA : janvier 999 999, février 1 000 000, mars 500 000, aucune transaction en avril. Objectifs : mensuels janvier 1 000 000, février 1 000 000, mars 0 ; trimestriel T1 2 499 999 ; aucun annuel.
 
@@ -214,9 +210,38 @@ Aucune dépense. CA : janvier 999 999, février 1 000 000, mars 500 000, aucune 
 
 Prouve : la troncature (99,9999 % s'affiche 99,9, jamais 100,0 tant que l'objectif n'est pas atteint), l'égalité stricte (objectif exactement atteint), le trimestre atteint à l'unité près, l'objectif à 0 avec un CA positif.
 
-### Scénario 5 — entreprise sans aucune transaction ni objectif (`Syn3`, solde initial 250 000, `syntheses_periodes(2026, '2026-05-20')`)
+### Scénario 5 — entreprise sans aucune transaction ni objectif (`Syn3`, solde de caisse 250 000 à la fin du 31 décembre 2025, `syntheses_periodes(2026, '2026-05-20')`)
 
 Mois 1 à 5 (mai `en_cours`), T1 `clos`, T2 `en_cours`, année `en_cours` : toutes les lignes à 0, `a_activite` faux, `statut_objectif = absent`, taux et verdict `null`, **solde 250 000 → 250 000** partout. Aucune division par zéro, aucune erreur.
+
+### Scénario 6 — solde saisi en octobre, historique de janvier à septembre importé (entreprise `Syn4`, `syntheses_periodes(2026, '2026-10-20')`)
+
+C'est le cas qui produisait un double comptage avant le prérequis. **`solde_initial = 800 000` à la fin du 13 octobre 2026** (`date_solde_initial = 2026-10-13`). Transactions : 2026-01-10 entrée 300 000 ; 2026-02-05 sortie 120 000 ; 2026-03-20 entrée 90 000 ; 2026-05-15 sortie 60 000 ; 2026-07-01 entrée 150 000 ; 2026-09-30 sortie 200 000 ; 2026-10-05 entrée 40 000 ; **2026-10-13 entrée 25 000 (le jour du solde : déjà comprise dans les 800 000)** ; 2026-10-20 sortie 70 000. Aucun objectif (colonnes d'objectif : `absent`, taux et verdict `null`, non reprises ci-dessous). Octobre est le mois de référence (`en_cours`).
+
+| Période | Statut | Activité | CA | Dépenses | Résultat | Solde début | Solde fin |
+|---|---|---|---|---|---|---|---|
+| Mois 1 | clos | oui | 300 000 | 0 | 300 000 | 575 000 | 875 000 |
+| Mois 2 | clos | oui | 0 | 120 000 | −120 000 | 875 000 | 755 000 |
+| Mois 3 | clos | oui | 90 000 | 0 | 90 000 | 755 000 | 845 000 |
+| Mois 4 | clos | non | 0 | 0 | 0 | 845 000 | 845 000 |
+| Mois 5 | clos | oui | 0 | 60 000 | −60 000 | 845 000 | 785 000 |
+| Mois 6 | clos | non | 0 | 0 | 0 | 785 000 | 785 000 |
+| Mois 7 | clos | oui | 150 000 | 0 | 150 000 | 785 000 | 935 000 |
+| Mois 8 | clos | non | 0 | 0 | 0 | 935 000 | 935 000 |
+| Mois 9 | clos | oui | 0 | 200 000 | −200 000 | 935 000 | 735 000 |
+| Mois 10 | en_cours | oui | 65 000 | 70 000 | −5 000 | 735 000 | 730 000 |
+| T1 | clos | oui | 390 000 | 120 000 | 270 000 | 575 000 | 845 000 |
+| T2 | clos | oui | 0 | 60 000 | −60 000 | 845 000 | 785 000 |
+| T3 | clos | oui | 150 000 | 200 000 | −50 000 | 785 000 | 735 000 |
+| T4 | en_cours | oui | 65 000 | 70 000 | −5 000 | 735 000 | 730 000 |
+| Année 2026 | en_cours | oui | 605 000 | 450 000 | 155 000 | 575 000 | 730 000 |
+
+Ce que le scénario prouve :
+- le solde d'ouverture de 2026 est **575 000** (= 800 000 − 225 000 de mouvements jusqu'au 13 octobre) : le solde saisi en octobre **n'est pas** recompté avec l'historique (l'ancien calcul donnait 800 000 au 1er janvier et 955 000 à la fin d'octobre) ;
+- le solde de fin d'octobre (**730 000**) est cohérent avec la règle du prérequis : `solde_caisse_a('2026-10-31') = 800 000 − 70 000`, la transaction du 13 octobre n'étant pas rajoutée ; octobre, qui **contient** la date du solde, a un solde de début de 735 000 (= `solde_caisse_a('2026-09-30')`) et un résultat de −5 000 (+40 000 +25 000 −70 000) ;
+- les mois antérieurs à la date du solde (janvier à septembre) ont des soldes reconstitués en remontant le temps, avec les identités `solde_fin = solde_debut + résultat` et la continuité mois → mois, trimestre → trimestre ;
+- égalité avec `ecarts_mensuels(2026, '2026-10-20')` pour les mois actifs (janvier : 575 000 → 875 000 ; octobre : 735 000 → 730 000) et avec `solde_caisse_a` aux bornes de chaque mois ;
+- **ordre de saisie** : les mêmes sorties sont obtenues si les transactions sont insérées avant ou après la saisie du solde et de sa date (le détail est prouvé au prérequis).
 
 ## Tests adversariaux (obligatoires, en utilisateur authentifié réel, jamais en `service_role`)
 
@@ -231,7 +256,7 @@ Mois 1 à 5 (mai `en_cours`), T1 `clos`, T2 `en_cours`, année `en_cours` : tout
    - garde « objectif à 0 » (sinon division par zéro) ;
    - garde « période sans transaction » sur le taux (sinon avril afficherait 0,0 %) ;
    - troncature à 1 décimale / verdict exact (scénario 4) ;
-   - report du solde d'ouverture d'une année vide (scénarios 3 : 2024 et 2027) ;
+   - appel à la règle unique du solde pour l'ouverture de l'année (scénarios 3 : 2024 et 2027, et scénario 6) ;
    - absence de prorata (mai reste sans taux malgré l'objectif annuel).
 
 ## Hors de ce module
@@ -245,7 +270,7 @@ Mois 1 à 5 (mai `en_cours`), T1 `clos`, T2 `en_cours`, année `en_cours` : tout
 
 ## Livrable attendu pour revue
 
-PR depuis `feat/module-4.8-syntheses` vers `main`, avec :
+PR depuis `feat/module-4.8-syntheses` vers `main` (le prérequis `Solde-Initial-Date` est déjà mergé), avec :
 - le SQL complet de la migration en clair dans la description (fonction, GRANT, éventuel index) et les ACL réelles ;
 - le résultat réel de chaque scénario chiffré, comparé aux attendus ci-dessus (années, trimestres, mois, soldes) ;
 - la preuve des tests adversariaux et des contrôles négatifs ;
@@ -253,29 +278,28 @@ PR depuis `feat/module-4.8-syntheses` vers `main`, avec :
 - une nouvelle étape CI pour le test SQL, les nouveaux cas dans `acces_pages.mjs` (`/syntheses` dans la matrice rôle × page, lien de barre du CEO seulement) et dans les tests unitaires de formatage ;
 - CI verte. La migration attend l'approbation explicite d'Ouezz avant merge.
 
-## Décisions produit pour Ouezz
+## Décisions
 
-Uniquement ce qui change ce que le CEO voit ou comprend, avec ma recommandation.
+### Décisions produit (décidées, Ouezz, 2026-10-13)
 
-1. **Objectif à un autre niveau que la période affichée.** Recommandation : chaque période n'affiche que l'objectif saisi à son propre niveau ; **aucun prorata**, aucune somme de mois présentée comme objectif. Conséquence visible : avec un seul objectif annuel, seule l'année affiche un taux ; les mois et trimestres affichent « Pas d'objectif ». Alternatives : répartir l'objectif annuel au prorata (÷12, ÷4), qui fabrique des objectifs mensuels que le CEO n'a pas fixés et ignore la saisonnalité ; ou sommer les objectifs mensuels en objectif de trimestre (faux dès qu'il en manque un).
-2. **Période sans aucune transaction.** Recommandation : pas de taux (« Aucune saisie »), cohérent avec le 4.7 où un mois vide est « pas encore saisi ». Alternative : afficher 0,0 % (objectif manqué), qui punit un mois que la comptable n'a pas encore saisi.
-3. **Trimestre et année en cours.** Recommandation : taux « à date » (CA à date ÷ objectif de la période entière), **sans verdict** ni couleur « manqué » tant que la période n'est pas close. Alternative : ne pas afficher de taux avant la clôture.
-4. **Solde de caisse initial sans date.** Recommandation : ne **pas** ajouter de date en V1 ; renommer le champ du Paramétrage « Solde de caisse avant votre première transaction saisie » avec une ligne d'aide (étape 3 du brief), car toutes les transactions saisies s'ajoutent au solde initial, quelle que soit leur date. Risque assumé : un CEO qui saisit le solde d'aujourd'hui puis d'anciennes transactions double-compte ces mouvements. Alternative : ajouter une colonne `date_solde_initial` (migration sur `entreprises`, modification du calcul du solde du 4.6 pour ignorer les transactions antérieures à cette date, nouveau test) ; plus rigoureux, plus lourd, et c'est une révision d'un module déjà mergé.
-5. **Forme de l'écran.** Recommandation : **un tableau unique groupé par trimestre** (mois, puis total du trimestre, puis total de l'année), comme l'onglet Excel d'origine, avec un sélecteur d'année. Alternative : trois onglets mois / trimestres / année (plus de clics, mais un tableau plus court sur mobile).
-6. **Exercice = année civile** (T1 = janvier à mars). Recommandation : oui en V1. Si un client a un exercice décalé, ce sera une évolution (paramètre de mois de début d'exercice), pas une adaptation de ce module.
-7. **Solde négatif.** Recommandation : afficher le vrai signe moins et la mention « solde négatif », **sans bandeau d'alerte** (les alertes de solde prévisionnel relèvent du 4.6 et du cashflow 4.9). Alternative : bandeau d'alerte en tête de page.
+1. **Objectif à un autre niveau que la période affichée** : chaque période n'affiche que l'objectif saisi à son propre niveau ; **aucun prorata**, aucune somme de mois présentée comme objectif. Avec un seul objectif annuel, seule l'année affiche un taux ; les mois et trimestres affichent « Pas d'objectif ».
+2. **Période sans aucune transaction** : pas de taux (« Aucune saisie »), cohérent avec le 4.7.
+3. **Trimestre et année en cours** : taux « à date » (CA à date ÷ objectif de la période entière), **sans verdict** tant que la période n'est pas close.
+4. **Solde de caisse initial : option A, daté.** Le solde initial devient un solde **à la fin d'une journée** (prérequis `Solde-Initial-Date`, à implémenter avant ce module). Plus de renommage du champ ni de cas « transaction antérieure non détectable » ; la saisie du solde et de sa date reste au Paramétrage. Les valeurs par défaut, la sémantique « fin de journée » et le refus des dates futures sont des choix **à valider** listés dans le brief du prérequis.
+5. **Forme de l'écran** : un tableau unique groupé par trimestre (mois, total du trimestre, total de l'année), comme l'onglet Excel d'origine, avec un sélecteur d'année.
+6. **Exercice = année civile** (T1 = janvier à mars) en V1.
+7. **Solde négatif** : vrai signe moins et mention « solde négatif », **sans bandeau d'alerte**.
 
-## Choix techniques proposés
+### Choix techniques proposés
 
 Ce que j'ai tranché, avec la justification.
 
 - **T1 — Une seule fonction `syntheses_periodes`** avec une colonne `granularite`, plutôt que trois fonctions : une seule ACL à verrouiller, une seule requête à tester, et la continuité des soldes entre granularités se prouve dans un seul jeu de lignes.
-- **T2 — Réutilisation, pas de recalcul.** Réel = `comparaison_mensuelle` (4.7) ; soldes = `ecarts_mensuels` (4.6) ; trimestres et année = sommes SQL des mois. Si le 4.6 ou le 4.7 évolue, le 4.8 suit sans autre modification, et le test recoupe les montants avec `comparaison_mensuelle` et son `ca_cumul`.
-- **T3 — Report du solde d'ouverture sans dupliquer la règle du 4.6.** Pour une année sans aucune activité, le solde d'ouverture est le solde de fin du dernier mois actif de la dernière année antérieure ayant une activité, lu dans `ecarts_mensuels` de cette année-là ; à défaut `entreprises.solde_initial`. Alternative écartée : recalculer `solde_initial + somme des résultats antérieurs`, qui dupliquerait la règle du solde (deux endroits à garder cohérents).
-- **T4 — Mois sans activité = solde reporté.** Le solde d'un mois vide est celui de la dernière fin connue (ou le solde d'ouverture de l'année) ; sans cela, les mois vides n'auraient pas de solde, car `ecarts_mensuels` ne renvoie aucune ligne pour eux.
-- **T5 — Taux tronqué à 1 décimale, verdict exact.** `taux = trunc(CA ÷ objectif × 100, 1)` et `atteint ⇔ CA ≥ objectif`, comparés en `numeric`. Un arrondi afficherait « 100,0 % » pour 99,9999 % tout en disant « manqué ». C'est différent des pourcentages du 4.6 et du 4.7 (arrondis à 2 décimales) parce qu'ici le pourcentage porte un verdict.
-- **T6 — `statut_objectif` et `verdict_objectif` calculés en SQL**, pas en TypeScript : la règle vit à un seul endroit, testée, et l'écran ne fait aucun calcul.
-- **T7 — Pas de graphique.** Le taux de réalisation et les soldes se lisent mieux dans le tableau, et un graphique de plus ajouterait du code à tester sans information nouvelle par rapport au 4.7. Le composant SVG du 4.7 reste disponible si Ouezz en demande un (par exemple l'évolution du solde de caisse).
-- **T8 — Aucune policy ni table nouvelle.** Les objectifs sont lus par `security invoker` sous la RLS existante (CEO uniquement) ; la fonction ajoute sa propre restriction au CEO, comme au 4.6 et au 4.7.
-- **T9 — Pas de nouvel index** (`transactions_date_idx` et l'index unique de `objectifs_ca` existent) ; à confirmer dans la PR.
-- **T10 — Tests** : même style que le 4.7 (jsonb attendus écrits en dur, `BEGIN … ROLLBACK`, utilisateurs authentifiés réels), contrôles négatifs consignés dans la PR, étape CI dédiée, `/syntheses` dans la matrice de `acces_pages.mjs`.
+- **T2 — Réutilisation, pas de recalcul.** Réel = `comparaison_mensuelle` (4.7) ; règle du solde = `solde_caisse_a` (prérequis, déjà appelée par `ecarts_mensuels`) ; trimestres et année = sommes SQL des mois. Si le 4.6 ou le 4.7 évolue, le 4.8 suit sans autre modification, et le test recoupe les montants avec `comparaison_mensuelle`, son `ca_cumul` et `ecarts_mensuels`.
+- **T3 — Soldes = ouverture de l'année + cumul des résultats mensuels.** Un seul appel à `solde_caisse_a` (le 31 décembre précédent) puis une somme cumulative des résultats mois par mois, plutôt qu'un appel par frontière : même résultat par l'identité de continuité, une seule lecture indexée, et les mois sans activité ou l'année entière vide ne demandent aucun cas particulier. (Remplace la logique de report que prévoyait la première version de ce brief, devenue inutile avec le solde daté.)
+- **T4 — Taux tronqué à 1 décimale, verdict exact.** `taux = trunc(CA ÷ objectif × 100, 1)` et `atteint ⇔ CA ≥ objectif`, comparés en `numeric`. Un arrondi afficherait « 100,0 % » pour 99,9999 % tout en disant « manqué ». C'est différent des pourcentages du 4.6 et du 4.7 (arrondis à 2 décimales) parce qu'ici le pourcentage porte un verdict.
+- **T5 — `statut_objectif` et `verdict_objectif` calculés en SQL**, pas en TypeScript : la règle vit à un seul endroit, testée, et l'écran ne fait aucun calcul.
+- **T6 — Pas de graphique.** Le taux de réalisation et les soldes se lisent mieux dans le tableau, et un graphique de plus ajouterait du code à tester sans information nouvelle par rapport au 4.7. Le composant SVG du 4.7 reste disponible si Ouezz en demande un (par exemple l'évolution du solde de caisse).
+- **T7 — Aucune policy ni table nouvelle.** Les objectifs sont lus par `security invoker` sous la RLS existante (CEO uniquement) ; la fonction ajoute sa propre restriction au CEO, comme au 4.6 et au 4.7.
+- **T8 — Pas de nouvel index** (`transactions_date_idx` et l'index unique de `objectifs_ca` existent) ; à confirmer dans la PR.
+- **T9 — Tests** : même style que le 4.7 (jsonb attendus écrits en dur, `BEGIN … ROLLBACK`, utilisateurs authentifiés réels), contrôles négatifs consignés dans la PR, étape CI dédiée, `/syntheses` dans la matrice de `acces_pages.mjs`.
