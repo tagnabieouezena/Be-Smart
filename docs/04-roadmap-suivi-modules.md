@@ -16,6 +16,11 @@
 - [x] Module 4.2 — Paramétrage (catégories, objectifs CA, solde initial, modes de paiement) ✅ mergée dans `main` (PR #3, commit `efe1dfa`)
   - Décision produit tranchée par Ouezz : modes de paiement en liste fixe (`cash`/`mobile_money`/`virement`/`cheque`), pas de table dédiée — à respecter dans la colonne `mode_paiement` du Module 4.4.
 
+- [ ] Brief transverse — Navigation par rôle et parcours d'accueil (PR #12, `feat/navigation-et-accueil`) : **en revue**, merge par Ouezz
+  - Contenu : barre de navigation selon le rôle, confirmation d'e-mail à l'inscription (route `/auth/confirm`, vérification au clic seulement), acceptation d'invitation, mot de passe oublié, redirections internes uniquement, refus de création d'entreprise pour un compte invité sans profil.
+  - Dette restante : réglages Auth de prod à reporter à la main (note `docs/05-deploiement-prod-reglages-auth.md`, PR #13) ; parcours changement d'e-mail et lien magique absents, modèles d'e-mail à créer avant activation ; compte invité orphelin (dette du 4.1) désormais refusé avec un message, mais à réinviter par le CEO ; test d'e-mails réels uniquement en local (Mailpit).
+  - Dépend de : fournisseur SMTP (Phase 5) ; tableau de bord KPI (4.11) pour remplacer `/ecarts` comme accueil du CEO ; chantier design global (dédié, hors brief).
+
 ## Phase 2 — Cœur du pilotage
 - [x] Module 4.3 — Budget prévisionnel mensuel ✅ mergée dans `main` (PR #4, commit `c6b2e66`)
   - Point de sécurité à retenir pour les modules suivants : la cohérence entre tables liées (budget/catégorie/entreprise) doit être vérifiée par trigger `BEFORE INSERT/UPDATE`, pas seulement par RLS — une policy `entreprise_id = current_entreprise_id()` seule laisse passer une ligne pointant vers un budget ou une catégorie d'une autre entreprise tant que la ligne elle-même porte le bon `entreprise_id`. Testé explicitement (test adversarial #4 de ce module) ; à reproduire pour toute nouvelle table qui référence plusieurs tables scopées par entreprise.
@@ -50,6 +55,7 @@
 - [ ] Couche PWA offline (Serwist, Dexie, Background Sync)
 - [ ] Audit de sécurité multi-tenant complet (équivalent du 6-phase audit Air Ajjar), incluant la vérification que le pipeline local→CI→prod n'expose jamais les identifiants prod
 - [ ] Premier job CI de promotion vers prod (`supabase db push`)
+- [ ] Réglages Auth à reporter à la main dans le dashboard de prod avant la mise en ligne : voir [docs/05-deploiement-prod-reglages-auth.md](05-deploiement-prod-reglages-auth.md) (PR #13)
 
 ## Hors périmètre V1 (CDC 4.14 — ne pas construire maintenant)
 Facturation intégrée, API Mobile Money, comptabilité SYSCOHADA, app mobile native, dettes fournisseurs, profil Lecteur, comparaison année sur année.
