@@ -174,7 +174,7 @@ Cas de l'accueil : avec cette date de référence, le bandeau compare avril (der
 
 **Cas du bandeau** (fonction `comparaison_accueil`). Chaque scénario ci-dessous utilise une **entreprise dédiée** dans `BEGIN … ROLLBACK`.
 
-*Cohérence avec le tableau annuel (scénario des cinq mois, mois de mars à décembre).* `comparaison_accueil('2026-05-20')` renvoie le dernier mois clos **avril 2026** comparé à mars : **identique** à la ligne d'avril du tableau annuel (CA −300 000 / −100,00 %, dépenses −60 000 / −50,00 %, résultat −240 000). Preuve que les deux fonctions appliquent la même règle.
+*Cohérence avec le tableau annuel (scénario des cinq mois, de janvier à mai 2026, date de référence en mai).* `comparaison_accueil('2026-05-20')` renvoie le dernier mois clos **avril 2026** comparé à mars : **identique** à la ligne d'avril du tableau annuel (CA −300 000 / −100,00 %, dépenses −60 000 / −50,00 %, résultat −240 000). Preuve que les deux fonctions appliquent la même règle.
 
 *Scénario 1 : date de référence en janvier (`2027-01-15`).* Transactions :
 
