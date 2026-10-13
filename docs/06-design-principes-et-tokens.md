@@ -4,9 +4,9 @@
 
 ## 1. Principes tirés de la maquette
 
-**Barre latérale.** Quatre blocs, de haut en bas :
+**Barre latérale.** Cinq blocs, de haut en bas :
 1. **Marque** (nom et repère court) et bouton de repli de la barre.
-2. **Recherche**, avec raccourci clavier affiché. Réservée aux écrans où il y a quelque chose à chercher (transactions, créances) : à ne pas afficher partout tant que la recherche globale n'existe pas.
+2. **Recherche**, avec raccourci clavier affiché. **Non repris en V1** : la recherche globale est reportée après la V1 (décision du 2026-10-13) et la barre latérale n'a aucun champ de recherche. L'emplacement reste prévu dans la structure.
 3. **Navigation principale** : liste verticale d'icônes et d'intitulés, un élément actif.
 4. **Section secondaire**, séparée par un filet et un titre discret (ex. « Autres »).
 5. **Profil en bas** : nom, e-mail, menu de déconnexion. Toujours visible, jamais dans le contenu.
@@ -37,7 +37,7 @@
 
 ## 3. Tokens CSS proposés
 
-Thème clair par défaut ; thème sombre sur demande explicite ou préférence système. Tous les contrastes sont calculés selon la formule WCAG 2.x (ratio relatif de luminance) ; les seuils visés sont 4.5:1 pour le texte et 3:1 pour les éléments graphiques porteurs d'information.
+**Thème clair seul en V1** (décision du 2026-10-13). Les tokens du thème sombre ci-dessous restent documentés pour plus tard et **ne sont pas implémentés en V1**. Tous les contrastes sont calculés selon la formule WCAG 2.x (ratio relatif de luminance) ; les seuils visés sont 4.5:1 pour le texte et 3:1 pour les éléments graphiques porteurs d'information.
 
 ```css
 :root {
@@ -52,7 +52,7 @@ Thème clair par défaut ; thème sombre sur demande explicite ou préférence s
   --color-texte: #111318;            /* 18.58:1 sur fond, 17.33:1 sur surface */
   --color-texte-secondaire: #5b6170; /* 6.20:1 sur fond, 5.78:1 sur surface */
 
-  /* Accent (valeur retenue à valider : voir §5) */
+  /* Accent retenu : A, indigo (décision du 2026-10-13, voir §5) */
   --color-accent: #4f46e5;           /* 6.29:1 sur fond, bouton texte blanc 6.29:1 */
   --color-accent-texte: #ffffff;
   --color-accent-fond-actif: #eef0ff;/* fond de l'élément actif de la barre */
@@ -67,7 +67,7 @@ Thème clair par défaut ; thème sombre sur demande explicite ou préférence s
   --color-focus: #4f46e5;            /* 6.29:1 sur fond */
 
   /* Typographie */
-  --police-texte: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --police-texte: var(--font-inter), system-ui, -apple-system, "Segoe UI", sans-serif; /* --font-inter fournie par next/font */
   --police-chiffres: var(--police-texte); /* tabular-nums activé sur les montants */
   --taille-base: 15px;
   --taille-petite: 13px;
@@ -94,6 +94,7 @@ Thème clair par défaut ; thème sombre sur demande explicite ou préférence s
   --largeur-barre: 248px;
 }
 
+/* --- Thème sombre : documenté, hors V1, non implémenté --- */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --color-fond: #121316;
@@ -134,10 +135,11 @@ Thème clair par défaut ; thème sombre sur demande explicite ou préférence s
     --color-focus: #8b86ff;
     --ombre-carte: none;
     --ombre-menu: 0 8px 24px rgb(0 0 0 / 0.5);
-}```
+}
+```
 
 Points de contrôle :
-- Les deux blocs sombres (préférence système et choix explicite) portent les mêmes valeurs : à générer depuis une seule source (un fichier de tokens) pour éviter les dérives.
+- Hors V1 : les deux blocs sombres (préférence système et choix explicite) portent les mêmes valeurs : à générer depuis une seule source (un fichier de tokens) pour éviter les dérives.
 - `body` reçoit une couleur de fond et une couleur de texte explicites, à chaque thème.
 - Le texte sur fond d'accent (bouton) et l'accent sur fond actif sont à vérifier à chaque nouvelle couleur.
 
@@ -155,16 +157,18 @@ La structure de navigation ne change pas : seule la présentation change. Les li
 - Le contrôle d'accès reste côté serveur : un lien masqué n'est pas une protection (brief, §1).
 - Le nom de l'entreprise, présent dans la barre actuelle, passe sous la marque, en texte secondaire.
 
-## 5. Décisions ouvertes pour Ouezz
+## 5. Décisions
 
-1. **Couleur d'accent.** Trois propositions, contrastes vérifiés ci-dessus :
-   - **A. Indigo** `#4f46e5` (clair) / `#8b86ff` (sombre) : neutre, proche de la maquette, sans connotation particulière. Contraste bouton 6.29:1.
-   - **B. Sarcelle** `#0f766e` (clair) / `#2dd4bf` (sombre) : sobre et financier, rappelle les outils bancaires. Contraste bouton 5.47:1 ; actif 4.84:1 (limite, à surveiller).
-   - **C. Violet** `#6d28d9` (clair) / `#a78bfa` (sombre) : plus affirmé. Contraste bouton 7.10:1.
-   - Recommandation : **A**. Le sarcelle (B) est trop proche du vert des écarts positifs (`#15703a`) : le rapport de luminance entre les deux n'est que de 1.12:1 et la teinte se confond. C'est une raison suffisante pour l'écarter tant que le positif reste vert.
-2. **Thème sombre en V1.** Option 1 : clair seul en V1 (un seul jeu à tester, moins de risque). Option 2 : clair par défaut et sombre disponible dans le paramétrage. Le jeu de tokens ci-dessus permet les deux ; le coût est surtout de tests et de captures.
-3. **Police.** Inter (licence SIL Open Font License, libre de droits commerciaux, chiffres tabulaires disponibles) ou la pile système (aucun téléchargement, rendu natif). Recommandation : Inter, chargée depuis Google Fonts si l'option est retenue (le chargement externe reste à valider, car il ajoute une dépendance réseau).
-4. **Présence de la recherche globale** dans la barre : seulement après décision sur le périmètre (quoi chercher, dans quels modules).
+### Décidées par Ouezz (2026-10-13)
+
+1. **Accent : A, indigo** — `#4f46e5` (thème clair) / `#8b86ff` (thème sombre, hors V1). Contraste du bouton 6.29:1 ; texte actif 5.55:1 sur son fond. Écartés : B, sarcelle (`#0f766e`), car trop proche du vert des écarts positifs (`#15703a`, rapport de luminance 1.12:1) ; C, violet (`#6d28d9`), non retenu. Les contrastes de A restent ceux du §3.
+2. **Thème : clair seul en V1.** Les tokens sombres du §3 restent documentés pour plus tard, non implémentés ; les ajouter plus tard demande surtout des tests et des captures.
+3. **Police : Inter via `next/font/google`**, auto-hébergée au build : aucune requête vers Google Fonts à l'exécution. Repli sur la pile système (`system-ui, -apple-system, "Segoe UI", sans-serif`) si la police ne se charge pas. Licence SIL Open Font License, chiffres tabulaires disponibles.
+4. **Recherche globale : reportée après la V1.** Aucun champ de recherche dans la barre latérale en V1.
+
+### Encore ouvertes
+
+Aucune décision de design n'est en attente pour l'étape 2. Le fournisseur SMTP et le plan d'hébergement relèvent d'autres notes (`docs/05-deploiement-prod-reglages-auth.md`).
 
 ## 6. Hors de ce document
 
