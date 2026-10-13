@@ -226,12 +226,16 @@ const MODULES = ["/ecarts", "/budgets", "/transactions", "/creances", "/parametr
     // e) compte sans profil + next forgé : l'espace est créé, le next forgé n'est jamais suivi.
     const meta2 = await connexion(META2, motDePasse);
     const forge = await page(`/?next=${encodeURIComponent("//evil.com")}`, meta2);
-    verifier("sans profil + next forgé : espace créé, accueil du CEO (jamais l'extérieur)", forge.status === 307 && forge.location === "/ecarts", `HTTP ${forge.status} -> ${forge.location}`);
+    verifier("sans profil + next forgé : espace créé, arrivée sur /parametrage (jamais l'extérieur)", forge.status === 307 && forge.location === "/parametrage", `HTTP ${forge.status} -> ${forge.location}`);
 
-    // f) avec métadonnées, sans next : accueil du rôle CEO.
+    // f) avec métadonnées, sans next : premier passage -> /parametrage ; espace déjà créé -> accueil du rôle.
     const meta3 = await connexion(META3, motDePasse);
     const sansNext = await page("/", meta3);
-    verifier("avec métadonnées, sans next : espace créé, accueil du CEO", sansNext.status === 307 && sansNext.location === "/ecarts", `HTTP ${sansNext.status} -> ${sansNext.location}`);
+    verifier("avec métadonnées, sans next : espace créé à l'instant, arrivée sur /parametrage", sansNext.status === 307 && sansNext.location === "/parametrage", `HTTP ${sansNext.status} -> ${sansNext.location}`);
+    const dejaCree = await page("/", meta3);
+    verifier("espace déjà existant, sans next : accueil du rôle (/ecarts), pas /parametrage", dejaCree.status === 307 && dejaCree.location === "/ecarts", `HTTP ${dejaCree.status} -> ${dejaCree.location}`);
+    const dejaCreeNext = await page(`/?next=${encodeURIComponent("/creances")}`, meta3);
+    verifier("espace déjà existant, next valide : suivi", dejaCreeNext.status === 307 && dejaCreeNext.location === "/creances", `HTTP ${dejaCreeNext.status} -> ${dejaCreeNext.location}`);
   } finally {
     for (const id of aSupprimer) {
       await fetch(`${SB}/auth/v1/admin/users/${id}`, { method: "DELETE", headers: admin });

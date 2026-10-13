@@ -41,11 +41,18 @@ export function cheminAutorisePourRole(
   return PAGES_PAR_ROLE[role].some((page) => base === page || base === `${page}/`);
 }
 
-// Destination après connexion ou création de l'espace : `next` s'il est interne
-// ET autorisé pour ce rôle, sinon l'accueil du rôle.
+// Destination quand l'espace existe déjà : `next` s'il est interne ET autorisé
+// pour ce rôle, sinon l'accueil du rôle.
 export function destinationPourRole(
   next: string | null | undefined,
   role: "ceo" | "comptable" | "supervision",
 ): string {
   return cheminAutorisePourRole(next, role) ? (cheminInterneSur(next) as string) : accueilPourRole(role);
+}
+
+// Destination juste après la création de l'espace (premier passage par « / ») :
+// `next` s'il est interne ET autorisé pour le CEO, sinon /parametrage, première
+// étape du parcours (catégories et solde initial).
+export function destinationApresCreation(next: string | null | undefined): string {
+  return cheminAutorisePourRole(next, "ceo") ? (cheminInterneSur(next) as string) : "/parametrage";
 }

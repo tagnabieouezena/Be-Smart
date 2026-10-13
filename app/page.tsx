@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BoutonDeconnexion } from "@/components/bouton-deconnexion";
 import { lireContexte } from "@/lib/contexte";
-import { cheminInterneSur, destinationPourRole } from "@/lib/redirection";
+import { cheminInterneSur, destinationApresCreation, destinationPourRole } from "@/lib/redirection";
 import { createClient } from "@/lib/supabase/server";
 
 // Point d'entrée unique : redirige chacun vers l'accueil de son rôle.
@@ -45,8 +45,10 @@ export default async function Accueil({ searchParams }: { searchParams: Promise<
       p_nom_utilisateur: typeof meta.nom_ceo === "string" && meta.nom_ceo.trim() !== "" ? meta.nom_ceo : (contexte.user.email ?? "CEO"),
     });
     if (!error) {
-      // Espace créé : le compte est désormais CEO.
-      redirect(destinationPourRole(suite, "ceo"));
+      // Espace créé à l'instant (premier passage) : `next` s'il est valide et autorisé
+      // pour le CEO, sinon /parametrage. Quand l'espace existait déjà, on est passé par
+      // la branche « rôle connu » plus haut : accueil du rôle.
+      redirect(destinationApresCreation(suite));
     }
   }
 
