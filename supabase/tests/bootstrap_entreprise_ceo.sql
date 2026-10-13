@@ -171,3 +171,86 @@ begin
 end $$;
 
 rollback;
+
+-- ---------------------------------------------------------------------
+-- Compte de supervision Be Smart (claim app_metadata.super_admin, aucune
+-- ligne utilisateurs, non invité) : l'appel est refusé, et ni entreprise ni
+-- ligne utilisateurs n'est créée. Les comptages se font hors RLS (rôle
+-- postgres) : sous `authenticated`, la RLS cacherait précisément ces lignes.
+-- ---------------------------------------------------------------------
+begin;
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "c0000000-0000-0000-0000-000000000001", "role": "authenticated", "app_metadata": {"super_admin": true}}';
+
+do $$
+begin
+  begin
+    perform public.creer_entreprise_et_ceo('Entreprise Supervision Forgee', 'Test', 'Superviseur');
+    raise exception 'GARDE-FOU ROMPU : un compte de supervision a pu creer une entreprise';
+  exception
+    when others then
+      if sqlerrm not like '%compte de supervision Be Smart ne peut pas créer%' then
+        raise exception 'ECHEC INATTENDU (supervision) : %', sqlerrm;
+      end if;
+  end;
+end $$;
+
+reset role;
+
+do $$
+begin
+  if exists (select 1 from public.entreprises where nom = 'Entreprise Supervision Forgee')
+     or exists (select 1 from public.utilisateurs where id = 'c0000000-0000-0000-0000-000000000001') then
+    raise exception 'SUPERVISION : une entreprise ou un profil a été créé malgré le refus';
+  end if;
+  raise notice 'OK — compte de supervision Be Smart : appel refusé, aucune entreprise ni ligne utilisateurs créée';
+end $$;
+
+rollback;
+
+-- Témoin : le même compte SANS le claim est un compte ordinaire sans profil
+-- et peut s'inscrire (le refus vient bien du claim, pas du compte).
+begin;
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub": "d0000000-0000-0000-0000-0000000000c1", "role": "authenticated", "app_metadata": {"super_admin": false}}';
+
+do $$
+begin
+  if public.creer_entreprise_et_ceo('Temoin Inscription', 'Test', 'Temoin') is null then
+    raise exception 'TEMOIN : un compte ordinaire sans profil doit pouvoir créer son entreprise';
+  end if;
+  raise notice 'OK — témoin : super_admin = false, l''inscription ordinaire fonctionne';
+end $$;
+
+rollback;
+
+-- ---------------------------------------------------------------------
+-- ACL de la fonction (inchangées par les migrations de ce module) : exécution
+-- pour postgres (propriétaire), authenticated et service_role uniquement ;
+-- jamais PUBLIC ni anon.
+-- ---------------------------------------------------------------------
+do $$
+declare
+  v_grantees text[];
+begin
+  select array_agg(g order by g)
+  into v_grantees
+  from (
+    select distinct case a.grantee when 0 then 'PUBLIC' else pg_get_userbyid(a.grantee)::text end as g
+    from pg_proc p, aclexplode(p.proacl) a
+    where p.proname = 'creer_entreprise_et_ceo' and p.pronamespace = 'public'::regnamespace
+      and a.privilege_type = 'EXECUTE'
+  ) q;
+
+  if v_grantees is distinct from array['authenticated', 'postgres', 'service_role'] then
+    raise exception 'ACL MODIFIEE : droits EXECUTE actuels = %', v_grantees;
+  end if;
+
+  if has_function_privilege('anon', 'public.creer_entreprise_et_ceo(text, text, text)', 'execute') then
+    raise exception 'ACL : anon peut exécuter creer_entreprise_et_ceo';
+  end if;
+
+  raise notice 'OK — ACL de creer_entreprise_et_ceo : postgres, authenticated, service_role ; ni PUBLIC ni anon';
+end $$;

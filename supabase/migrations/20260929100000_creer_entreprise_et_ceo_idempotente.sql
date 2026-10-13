@@ -16,6 +16,12 @@
 -- les métadonnées d'un compte étant modifiables par son titulaire, rien de ce
 -- que l'interface envoie ne peut contourner ce refus.
 --
+-- Un compte de supervision Be Smart (claim app_metadata.super_admin, le même
+-- critère que public.is_super_admin_be_smart() utilisé par la RLS et les vues
+-- de supervision) ne peut pas non plus créer d'entreprise : il resterait à la
+-- fois superviseur et CEO d'un tenant. Ce claim vit dans app_metadata, que le
+-- titulaire du compte ne peut pas modifier (contrairement à user_metadata).
+--
 -- Les paramètres ne servent qu'à NOMMER l'entreprise et le CEO : le rôle
 -- ('ceo') et l'entreprise sont fixés ici, jamais fournis par l'appelant.
 
@@ -36,6 +42,10 @@ declare
 begin
   if auth.uid() is null then
     raise exception 'Authentification requise.';
+  end if;
+
+  if public.is_super_admin_be_smart() then
+    raise exception 'Un compte de supervision Be Smart ne peut pas créer d''entreprise.';
   end if;
 
   perform pg_advisory_xact_lock(hashtextextended('creer_entreprise_et_ceo:' || auth.uid()::text, 0));
@@ -65,4 +75,4 @@ end;
 $$;
 
 comment on function public.creer_entreprise_et_ceo(text, text, text) is
-  'Bootstrap atomique et idempotent : crée une entreprise et son premier CEO (auth.uid() courant) ; si le compte est déjà rattaché, renvoie son entreprise sans rien créer ; refuse tout compte issu d''une invitation non rattaché. Les paramètres ne servent qu''à nommer.';
+  'Bootstrap atomique et idempotent : crée une entreprise et son premier CEO (auth.uid() courant) ; si le compte est déjà rattaché, renvoie son entreprise sans rien créer ; refuse tout compte issu d''une invitation non rattaché et tout compte de supervision Be Smart. Les paramètres ne servent qu''à nommer.';
