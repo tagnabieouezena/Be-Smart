@@ -16,10 +16,11 @@
 - [x] Module 4.2 — Paramétrage (catégories, objectifs CA, solde initial, modes de paiement) ✅ mergée dans `main` (PR #3, commit `efe1dfa`)
   - Décision produit tranchée par Ouezz : modes de paiement en liste fixe (`cash`/`mobile_money`/`virement`/`cheque`), pas de table dédiée — à respecter dans la colonne `mode_paiement` du Module 4.4.
 
-- [ ] Brief transverse — Navigation par rôle et parcours d'accueil (PR #12, `feat/navigation-et-accueil`) : **en revue**, merge par Ouezz
-  - Contenu : barre de navigation selon le rôle, confirmation d'e-mail à l'inscription (route `/auth/confirm`, vérification au clic seulement), acceptation d'invitation, mot de passe oublié, redirections internes uniquement, refus de création d'entreprise pour un compte invité sans profil.
-  - Dette restante : réglages Auth de prod à reporter à la main (note `docs/05-deploiement-prod-reglages-auth.md`, PR #13) ; parcours changement d'e-mail et lien magique absents, modèles d'e-mail à créer avant activation ; compte invité orphelin (dette du 4.1) désormais refusé avec un message, mais à réinviter par le CEO ; test d'e-mails réels uniquement en local (Mailpit).
-  - Dépend de : fournisseur SMTP (Phase 5) ; tableau de bord KPI (4.11) pour remplacer `/ecarts` comme accueil du CEO ; chantier design global (dédié, hors brief).
+- [x] Brief transverse — Navigation par rôle et parcours d'accueil ✅ mergée dans `main` (PR #12, merge `c87048d`, migration approuvée par Ouezz le 2026-10-13)
+  - Contenu : barre de navigation selon le rôle, confirmation d'e-mail à l'inscription (route `/auth/confirm`, jeton vérifié au clic seulement), acceptation d'invitation, mot de passe oublié, redirections internes uniquement (`next` filtré), `creer_entreprise_et_ceo` idempotente et refusée aux comptes invités et à la supervision.
+  - Sécurité des accès : garde serveur `exigerRole()` sur chaque page de module (404 hors du rôle, y compris pour la supervision hors `/supervision`) ; un compte connecté sans profil est renvoyé vers `/` (jamais `/connexion`) qui recrée l'espace ou affiche « Compte non rattaché » ; test de route en CI (`supabase/tests/acces_pages.mjs`).
+  - Dette restante : réglages Auth de prod à reporter à la main (note `docs/05-deploiement-prod-reglages-auth.md`) ; parcours changement d'e-mail et lien magique non construits, modèles d'e-mail à créer avant de les activer ; compte invité orphelin (dette du 4.1) refusé avec un message, à réinviter par le CEO ; parcours d'e-mails testé uniquement en local (Mailpit).
+  - Dépend de : fournisseur SMTP (Phase 5) ; tableau de bord KPI (4.11) pour remplacer `/ecarts` comme accueil du CEO ; chantier design global (décisions dans `docs/06-design-principes-et-tokens.md` : accent indigo, thème clair seul en V1, police Inter, pas de recherche globale en V1 ; implémentation à faire).
 
 ## Phase 2 — Cœur du pilotage
 - [x] Module 4.3 — Budget prévisionnel mensuel ✅ mergée dans `main` (PR #4, commit `c6b2e66`)
@@ -41,7 +42,10 @@
 - [x] Module 4.5 — Suivi des créances clients ✅ mergée dans `main` (PR #9, commit `edac215`)
   - Décisions actées par Ouezz : statut et montant encaissé jamais stockés, calculés depuis les transactions liées ; encaissement = une transaction d'entrée liée (paiements partiels = plusieurs transactions) ; surpaiement bloqué par verrou de ligne (concurrence prouvée avec deux sessions) ; suppression d'une créance impossible dès qu'un paiement existe (`on delete restrict`, testé hors RLS).
   - À décider avant commercialisation : sort des données d'une entreprise cliente qui quitte le service (toutes les tables sont en `on delete cascade` sur `entreprise_id`).
-- [ ] Module 4.7 — Comparaison mensuelle CA/Dépenses/Résultat net
+- [x] Module 4.7 — Comparaison mensuelle CA/Dépenses/Résultat net ✅ mergée dans `main` (PR #17, merge `58ec45d`, migration approuvée par Ouezz le 2026-10-13)
+  - Décisions actées par Ouezz : CA encaissé (base trésorerie : une facture compte au mois de son paiement) et résultat net, libellés « CA encaissé » / « Résultat net » avec ligne d'explication ; variation en % pour le CA et les dépenses, en FCFA seulement pour le résultat ; un mois sans transaction n'est comparable ni comme référence ni comme point de comparaison ; janvier sans variation sur le tableau annuel ; bandeau d'accueil = dernier mois clos contre le mois calendaire précédent (année précédente comprise) ; flèche selon le sens, couleur selon le caractère favorable, toujours avec signe et libellé ; graphique SVG écrit à la main (sans dépendance) ; ligne « Total année à date ».
+  - Réalisation : trois fonctions `security invoker` — `variation_mensuelle` (pure, seule source des règles de variation), `comparaison_mensuelle` (écran `/comparaison`), `comparaison_accueil` (bandeau en haut de `/ecarts`) — le réel étant lu uniquement dans `ecarts_mensuels` (4.6). CEO uniquement ; test SQL chiffré et adversarial ; formatage dans `lib/format.ts` (aucun calcul de montant côté TypeScript).
+  - À retenir : le bandeau est provisoire et sera repris tel quel par le tableau de bord KPI (4.11) ; `service_role` figure dans l'ACL des fonctions (privilèges par défaut Supabase, comme `ecarts_mensuels`), accepté par Ouezz.
 - [ ] Module 4.8 — Synthèses mensuelle, trimestrielle, annuelle
 - [ ] Module 4.9 — Cashflow prévisionnel
 
