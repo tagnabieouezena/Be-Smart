@@ -3,6 +3,7 @@ import { lireContexte } from "@/lib/contexte";
 
 const LIENS_CEO: LienNavigation[] = [
   { href: "/ecarts", libelle: "Écarts" },
+  { href: "/comparaison", libelle: "Comparaison" },
   { href: "/budgets", libelle: "Budget" },
   { href: "/transactions", libelle: "Transactions" },
   { href: "/creances", libelle: "Créances" },

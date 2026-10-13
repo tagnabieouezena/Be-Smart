@@ -1,13 +1,83 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Variations favorable / défavorable (docs/06 : --color-positif / --color-negatif).
+     Contrastes WCAG AA : 6,16:1 et 6,57:1 sur blanc. Jamais seuls : signe, flèche et
+     libellé accessible les accompagnent toujours. */
+  --color-positif: #15703a;
+  --color-negatif: #b42318;
+  /* Courbes du graphique de /comparaison (distinguées aussi par le tracé et la forme du repère). */
+  --graph-ca: #4f46e5;
+  --graph-depenses: #8a5a00;
+  --graph-resultat: #171717;
+  --graph-grille: #d0d4dc;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --color-positif: #4ade80;
+    --color-negatif: #f87171;
+    --graph-ca: #8b86ff;
+    --graph-depenses: #f5c26b;
+    --graph-resultat: #ededed;
+    --graph-grille: #3a3e48;
   }
+}
+
+/* Texte lu par les lecteurs d'écran, invisible à l'écran. */
+.sr-seul {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.variation-favorable {
+  color: var(--color-positif);
+}
+
+.variation-defavorable {
+  color: var(--color-negatif);
+}
+
+.variation-neutre {
+  color: inherit;
+}
+
+/* Bandeau des trois indicateurs (accueil du CEO) */
+.bandeau-variations {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  margin: 1rem 0 1.5rem;
+}
+
+.bandeau-variations > div {
+  border: 1px solid var(--graph-grille);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+}
+
+/* Tableau de /comparaison : défilement horizontal dans son conteneur, jamais sur la page. */
+.tableau-defilant {
+  overflow-x: auto;
+  max-width: 100%;
+  /* Contient les textes .sr-seul (position absolue) : sans cela ils échappent au
+     conteneur et créent un défilement horizontal de la page entière. */
+  position: relative;
+}
+
+.graphique-comparaison {
+  width: 100%;
+  max-width: 720px;
+  height: auto;
+  display: block;
 }
 
 html {
