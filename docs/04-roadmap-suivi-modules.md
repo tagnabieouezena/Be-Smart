@@ -55,6 +55,7 @@
 - [ ] Couche PWA offline (Serwist, Dexie, Background Sync)
 - [ ] Audit de sécurité multi-tenant complet (équivalent du 6-phase audit Air Ajjar), incluant la vérification que le pipeline local→CI→prod n'expose jamais les identifiants prod
 - [ ] Premier job CI de promotion vers prod (`supabase db push`)
+- [ ] Réglages Auth à reporter à la main dans le dashboard de prod avant la mise en ligne : voir [docs/05-deploiement-prod-reglages-auth.md](05-deploiement-prod-reglages-auth.md) (PR #13)
 
 ## Hors périmètre V1 (CDC 4.14 — ne pas construire maintenant)
 Facturation intégrée, API Mobile Money, comptabilité SYSCOHADA, app mobile native, dettes fournisseurs, profil Lecteur, comparaison année sur année.
