@@ -12,7 +12,7 @@ Décision d'Ouezz (2026-10-13), **option A** : le solde initial devient **daté*
 
 **`date_solde_initial` = la date D à la fin de laquelle `solde_initial` est le solde de caisse.** Le montant saisi est le solde **à la fin de la journée D**, c'est-à-dire **après toutes les transactions datées D**. Les transactions datées D sont donc **incluses dans ce montant** et ne s'y ajoutent jamais.
 
-Pourquoi « fin de journée » plutôt que « début de journée » (choix tranché, à valider : décision n° 1 ci-dessous) :
+Pourquoi « fin de journée » plutôt que « début de journée » (choix **décidé par Ouezz le 2026-10-13**, décision n° 1 ci-dessous) :
 - c'est l'usage d'un solde nommé par sa date (« solde au 30 septembre » d'un relevé bancaire, « solde au 31 décembre » d'une clôture) : c'est un solde de fin de journée ;
 - le cas le plus fréquent est celui d'un CEO qui compte sa caisse **aujourd'hui, après les opérations du jour** : il saisit la date du jour, sans avoir à raisonner sur « demain » ;
 - une date future est alors à refuser naturellement (la fin d'une journée à venir ne peut pas être observée).
@@ -204,19 +204,14 @@ PR depuis `feat/solde-initial-date` vers `main`, avec : le SQL complet de la mig
 
 ## Décisions
 
-### Décidée par Ouezz (2026-10-13)
+### Décisions produit (décidées, Ouezz, 2026-10-13)
 
 - **Le solde initial est daté (option A)**, avant que d'autres modules ne s'appuient dessus (aucune donnée en production).
-
-### Nouvelles décisions produit, à valider par Ouezz
-
-Ce que j'ai tranché pour avancer, avec ma justification ; ce sont des choix qui changent ce que le CEO saisit ou voit.
-
-1. **Sémantique « fin de journée »** : `solde_initial` est le solde à la **fin** du jour D (opérations de D comprises). Alternative : début de journée (opérations de D ajoutées au solde), plus naturelle pour « solde d'ouverture au 1er janvier », mais qui oblige à saisir la date de demain pour un solde compté aujourd'hui et fait de la date future un cas légitime.
-2. **Valeur par défaut `2000-01-01`** pour toutes les entreprises (existantes, du seed, créées à l'inscription) : reproduit exactement le comportement actuel ; l'écran affiche « Aucune date renseignée » tant que le CEO ne l'a pas fixée. Alternative : date de création de l'entreprise (casserait les tests et le seed, dont les transactions précèdent la date de création locale).
+1. **Sémantique « fin de journée »** : `solde_initial` est le solde à la **fin** du jour D (opérations de D comprises). *(Alternative écartée : début de journée.)*
+2. **Valeur par défaut `2000-01-01`** pour toutes les entreprises (existantes, du seed, créées à l'inscription) : reproduit exactement le comportement actuel ; l'écran affiche « **Aucune date renseignée** » tant que le CEO ne l'a pas fixée. *(Alternative écartée : date de création de l'entreprise.)*
 3. **Date future refusée.** Une date du jour est acceptée.
-4. **Modifier le montant ou la date recalcule tout l'historique affiché**, sans trace des anciennes valeurs (aucun solde n'est stocké). Alternative : journal des modifications, non prévu en V1.
-5. **Observation, pas une décision** : le comptable peut déjà lire `entreprises.solde_initial` (et lira la date) par la RLS de lecture de son entreprise ; comme il lit aussi toutes les transactions, il peut déjà reconstituer la caisse. Recommandation : ne rien changer en V1. Si le solde de caisse doit lui être caché, il faudra restreindre la lecture de ces deux colonnes, ce qui dépasse ce module.
+4. **Modifier le montant ou la date recalcule tout l'historique affiché**, sans trace des anciennes valeurs : **pas d'historique des modifications en V1**.
+5. **Lecture de `solde_initial` et de sa date par le comptable** (RLS de lecture de l'entreprise, préexistante) : **on ne change rien en V1.** Le comptable lit aussi toutes les transactions et peut déjà reconstituer la caisse ; restreindre ces deux colonnes dépasserait ce module.
 
 ### Choix techniques proposés
 
