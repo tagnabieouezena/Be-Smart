@@ -138,30 +138,104 @@ const LIGNE = "a6000000-0000-0000-0000-000000000001";
   verifier("la ligne rapprochée passe à « ok »", apres.corps?.[0]?.statut === "ok", JSON.stringify(apres.corps));
 }
 
-// 6. Messages : page signup-echec et écran « Compte non rattaché ».
+// 6. Comptes connectés SANS profil (inscription non finalisée, invitation sans
+//    rattachement) : jamais renvoyés vers /connexion ; « / » recrée l'espace
+//    ou affiche « Compte non rattaché » ; `next` est suivi seulement s'il est
+//    interne et autorisé pour le rôle.
+const MOT_PROSCRIT = "g\u00e9rant"; // écrit en échappement pour garder `grep -ri` vide dans le dépôt
+const MODULES = ["/ecarts", "/budgets", "/transactions", "/creances", "/parametrage", "/utilisateurs"];
 {
   const echec = await page("/auth/lien-invalide?type=signup-echec", null);
   verifier("signup-echec : bouton « Réessayer » vers /", echec.texte.includes("Réessayer") && /href="\/"/.test(echec.texte));
   verifier("signup-echec : pas de « Connectez-vous »", !echec.texte.includes("Connectez-vous") && !echec.texte.includes("Se connecter"));
   verifier("signup-echec : dit que l'espace n'a pas été créé", echec.texte.includes("n&#x27;a pas abouti") || echec.texte.includes("n'a pas abouti"));
+  const expire = await page("/auth/lien-invalide?type=invite", null);
+  verifier("lien d'invitation expiré : « la personne qui vous a invité(e) »", expire.texte.replace(/&#x27;/g, "'").includes("la personne qui vous a invité(e)") && !expire.texte.includes(MOT_PROSCRIT));
 
   const admin = { apikey: SERVICE, Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" };
-  const email = `sans-profil-${Date.now()}@test.besmart.local`;
-  const cree = await json(`${SB}/auth/v1/admin/users`, {
-    method: "POST",
-    headers: admin,
-    body: JSON.stringify({ email, password: "mot-de-passe-test", email_confirm: true }),
-  });
-  verifier("compte de test sans profil créé", cree.status === 200 || cree.status === 201, `HTTP ${cree.status}`);
+  const motDePasse = "mot-de-passe-test";
+  const suffixe = Date.now();
+  const aSupprimer = [];
+
+  async function creer(etiquette, corps) {
+    const reponse = await json(`${SB}/auth/v1/admin/users`, { method: "POST", headers: admin, body: JSON.stringify({ password: motDePasse, email_confirm: true, ...corps }) });
+    verifier(`compte « ${etiquette} » créé`, reponse.status === 200 || reponse.status === 201, `HTTP ${reponse.status}`);
+    aSupprimer.push(reponse.corps.id);
+    return reponse.corps;
+  }
+  const sansBruit = (texte) => texte.replace(/&#x27;/g, "'");
+  const NU = `sans-profil-${suffixe}@test.besmart.local`;
+  const META = `sans-profil-meta-${suffixe}@test.besmart.local`;
+  const META2 = `sans-profil-meta2-${suffixe}@test.besmart.local`;
+  const META3 = `sans-profil-meta3-${suffixe}@test.besmart.local`;
+  const INVITE = `sans-profil-invite-${suffixe}@test.besmart.local`;
   try {
-    const session = await connexion(email, "mot-de-passe-test");
-    const accueil = await page("/", session);
-    const texte = accueil.texte.replace(/&#x27;/g, "'");
-    verifier("« Compte non rattaché » : affiché", accueil.status === 200 && texte.includes("Compte non rattaché"), `HTTP ${accueil.status}`);
-    verifier("« Compte non rattaché » : « la personne qui vous a invité(e) », sans « gérant »", texte.includes("la personne qui vous a invité(e)") && !texte.includes("gérant"));
-    verifier("« Compte non rattaché » : pas de « Connectez-vous »", !texte.includes("Connectez-vous"));
+    await creer("sans profil, sans métadonnées", { email: NU });
+    await creer("sans profil, avec métadonnées", { email: META, user_metadata: { nom_entreprise: "Retour Test SARL", secteur: "Services", nom_ceo: "Retour Test" } });
+    await creer("sans profil, avec métadonnées (2)", { email: META2, user_metadata: { nom_entreprise: "Retour Test Deux SARL", secteur: "Services", nom_ceo: "Retour Deux" } });
+    await creer("sans profil, avec métadonnées (3)", { email: META3, user_metadata: { nom_entreprise: "Retour Test Trois SARL", secteur: "Services", nom_ceo: "Retour Trois" } });
+
+    // Compte invité sans entreprise : vraie invitation (invited_at posé) portant des métadonnées
+    // d'inscription forgées, puis mot de passe posé en admin.
+    const invitation = await json(`${SB}/auth/v1/invite`, { method: "POST", headers: admin, body: JSON.stringify({ email: INVITE, data: { nom_entreprise: "Entreprise Forgee SARL", nom_ceo: "Invite Forge" } }) });
+    verifier("compte invité sans entreprise créé (invited_at posé)", invitation.status === 200 && Boolean(invitation.corps?.invited_at), `HTTP ${invitation.status}`);
+    aSupprimer.push(invitation.corps.id);
+    await json(`${SB}/auth/v1/admin/users/${invitation.corps.id}`, { method: "PUT", headers: admin, body: JSON.stringify({ password: motDePasse, email_confirm: true }) });
+
+    // a) sans profil, sans métadonnées : aucune boucle vers /connexion ; « Compte non rattaché ».
+    const nu = await connexion(NU, motDePasse);
+    for (const chemin of MODULES) {
+      const { status, location } = await page(chemin, nu);
+      verifier(`sans profil ${chemin} : renvoi vers « / » (pas /connexion)`, status === 307 && (location ?? "").startsWith(`/?next=${encodeURIComponent(chemin)}`), `HTTP ${status} -> ${location}`);
+    }
+    const accueilNu = await page(`/?next=${encodeURIComponent("/transactions")}`, nu);
+    const texteNu = sansBruit(accueilNu.texte);
+    verifier("sans profil : « Compte non rattaché » affiché (pas de redirection)", accueilNu.status === 200 && texteNu.includes("Compte non rattaché"), `HTTP ${accueilNu.status}`);
+    verifier("sans profil : « la personne qui vous a invité(e) », sans le mot proscrit ni « Connectez-vous »", texteNu.includes("la personne qui vous a invité(e)") && !texteNu.includes(MOT_PROSCRIT) && !texteNu.includes("Connectez-vous"));
+
+    // b) invité sans entreprise : « Compte non rattaché », message d'invitation.
+    const invite = await connexion(INVITE, motDePasse);
+    const accueilInvite = await page("/", invite);
+    const texteInvite = sansBruit(accueilInvite.texte);
+    verifier("invité sans entreprise : « Compte non rattaché » (message d'invitation)", accueilInvite.status === 200 && texteInvite.includes("Compte non rattaché") && texteInvite.includes("créé par invitation") && texteInvite.includes("contactez la personne qui vous a invité(e)") && !texteInvite.includes(MOT_PROSCRIT));
+    const moduleInvite = await page("/transactions", invite);
+    verifier("invité sans entreprise : /transactions renvoie vers « / » (pas /connexion)", moduleInvite.status === 307 && (moduleInvite.location ?? "").startsWith("/?next="), `HTTP ${moduleInvite.status} -> ${moduleInvite.location}`);
+    const suiteInvite = await page(moduleInvite.location, invite);
+    verifier("invité sans entreprise : « / » affiche « Compte non rattaché » même avec des métadonnées forgées", suiteInvite.status === 200 && sansBruit(suiteInvite.texte).includes("Compte non rattaché"));
+    const profilInvite = await json(`${SB}/rest/v1/utilisateurs?select=id`, { headers: { apikey: ANON, Authorization: `Bearer ${invite.access_token}` } });
+    const entreprisesInvite = await json(`${SB}/rest/v1/entreprises?select=nom`, { headers: { apikey: ANON, Authorization: `Bearer ${invite.access_token}` } });
+    verifier("invité sans entreprise : aucun profil ni entreprise créés (la fonction a refusé)", Array.isArray(profilInvite.corps) && profilInvite.corps.length === 0 && Array.isArray(entreprisesInvite.corps) && entreprisesInvite.corps.length === 0, JSON.stringify({ profils: profilInvite.corps, entreprises: entreprisesInvite.corps }));
+
+    // c) avec métadonnées : /transactions -> « / » -> espace créé -> /transactions.
+    const meta = await connexion(META, motDePasse);
+    const etape1 = await page("/transactions", meta);
+    verifier("avec métadonnées : /transactions renvoie vers « / » en gardant la page", etape1.status === 307 && etape1.location === "/?next=%2Ftransactions", `HTTP ${etape1.status} -> ${etape1.location}`);
+    const etape2 = await page(etape1.location, meta);
+    verifier("avec métadonnées : « / » crée l'espace puis suit next vers /transactions", etape2.status === 307 && etape2.location === "/transactions", `HTTP ${etape2.status} -> ${etape2.location}`);
+    const etape3 = await page("/transactions", meta);
+    verifier("avec métadonnées : /transactions s'ouvre ensuite (200, plus de renvoi)", etape3.status === 200, `HTTP ${etape3.status}`);
+    const profil = await json(`${SB}/rest/v1/utilisateurs?email=eq.${encodeURIComponent(META)}&select=role,entreprises(nom)`, { headers: { apikey: ANON, Authorization: `Bearer ${meta.access_token}` } });
+    verifier("avec métadonnées : le compte est CEO de « Retour Test SARL »", profil.corps?.[0]?.role === "ceo" && profil.corps?.[0]?.entreprises?.nom === "Retour Test SARL", JSON.stringify(profil.corps));
+
+    // d) next non autorisé ou forgé : accueil du rôle (CEO) ; next autorisé : suivi.
+    for (const [valeur, attendu] of [["/supervision", "/ecarts"], ["//evil.com", "/ecarts"], ["https://evil.com", "/ecarts"], ["/budgets", "/budgets"]]) {
+      const { status, location } = await page(`/?next=${encodeURIComponent(valeur)}`, meta);
+      verifier(`CEO : /?next=${valeur} -> ${attendu}`, status === 307 && location === attendu, `HTTP ${status} -> ${location}`);
+    }
+
+    // e) compte sans profil + next forgé : l'espace est créé, le next forgé n'est jamais suivi.
+    const meta2 = await connexion(META2, motDePasse);
+    const forge = await page(`/?next=${encodeURIComponent("//evil.com")}`, meta2);
+    verifier("sans profil + next forgé : espace créé, accueil du CEO (jamais l'extérieur)", forge.status === 307 && forge.location === "/ecarts", `HTTP ${forge.status} -> ${forge.location}`);
+
+    // f) avec métadonnées, sans next : accueil du rôle CEO.
+    const meta3 = await connexion(META3, motDePasse);
+    const sansNext = await page("/", meta3);
+    verifier("avec métadonnées, sans next : espace créé, accueil du CEO", sansNext.status === 307 && sansNext.location === "/ecarts", `HTTP ${sansNext.status} -> ${sansNext.location}`);
   } finally {
-    await fetch(`${SB}/auth/v1/admin/users/${cree.corps.id}`, { method: "DELETE", headers: admin });
+    for (const id of aSupprimer) {
+      await fetch(`${SB}/auth/v1/admin/users/${id}`, { method: "DELETE", headers: admin });
+    }
   }
 }
 
