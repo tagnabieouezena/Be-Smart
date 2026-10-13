@@ -14,17 +14,17 @@
 
 Module en **lecture seule** : aucune nouvelle table, aucune écriture. Hors périmètre V1 (CDC 4.14) : comparaison année sur année.
 
-## Définitions (décisions proposées, à valider)
+## Définitions
 
 Le mois d'une transaction est celui de `transactions.date`.
 
-- **CA réel** = somme des `transactions.montant` avec `type = 'entree'`.
+- **CA encaissé** (« CA réel » du CDC) = somme des `transactions.montant` avec `type = 'entree'`.
 - **Dépenses réelles** = somme des `transactions.montant` avec `type = 'sortie'` (fixes et variables confondues).
-- **Résultat net** = CA réel − Dépenses réelles.
+- **Résultat net** = CA encaissé − Dépenses réelles.
 
 **Ces trois définitions sont déjà celles du Module 4.6** (`revenus_reel`, `depenses_reel`, `resultat_reel` de `ecarts_mensuels`). Elles ne sont pas réécrites : voir « Réutilisation du 4.6 » ci-dessous.
 
-**Pas de double comptage d'une créance payée.** Vérification faite sur le brief du 4.5 : une créance n'est jamais une transaction (table `creances` distincte, ni statut ni montant encaissé stockés). Quand le client paie, la comptable insère **une** transaction d'entrée liée (`creance_id`) : c'est la seule ligne qui compte dans le CA, au mois de la date du paiement. La fonction de ce module ne lit donc jamais la table `creances`. Conséquence assumée : le CA est un **CA encaissé** (base trésorerie), pas un CA facturé. Une facture émise en février et payée en mars apparaît en mars. C'est la même règle que le 4.6, et le « résultat net » est donc un résultat de trésorerie, pas un résultat comptable (SYSCOHADA hors V1). Voir la décision ouverte n° 2 sur le libellé.
+**Pas de double comptage d'une créance payée.** Vérification faite sur le brief du 4.5 : une créance n'est jamais une transaction (table `creances` distincte, ni statut ni montant encaissé stockés). Quand le client paie, la comptable insère **une** transaction d'entrée liée (`creance_id`) : c'est la seule ligne qui compte dans le CA, au mois de la date du paiement. La fonction de ce module ne lit donc jamais la table `creances`. Conséquence assumée : le CA est un **CA encaissé** (base trésorerie), pas un CA facturé. Une facture émise en février et payée en mars apparaît en mars. C'est la même règle que le 4.6, et le « résultat net » est donc un résultat de trésorerie, pas un résultat comptable (SYSCOHADA hors V1). Décidé le 2026-10-13 : les libellés de l'écran sont **« CA encaissé »** et **« Résultat net »**, avec une ligne d'explication sous le titre de l'écran (voir §2).
 
 ## Réutilisation du 4.6 (ne pas dupliquer)
 
@@ -45,11 +45,12 @@ Colonnes :
 - `mois` (1 à 12), `statut_mois` (`clos` / `en_cours`), `a_activite` (au moins une transaction dans le mois) ;
 - `ca`, `depenses`, `resultat` : numeric ;
 - pour le CA et les dépenses : `ca_variation` et `depenses_variation` (en FCFA, courant − précédent), `ca_variation_pct` et `depenses_variation_pct` ;
-- pour le résultat net : `resultat_variation` (en FCFA) **uniquement**, aucun pourcentage.
+- pour le résultat net : `resultat_variation` (en FCFA) **uniquement**, aucun pourcentage ;
+- `ca_cumul`, `depenses_cumul`, `resultat_cumul` : somme cumulative des mois renvoyés depuis janvier (fonction de fenêtre, en `numeric`). La dernière ligne alimente la ligne « Total année à date » de l'écran : aucune somme de montants n'est faite côté JavaScript.
 
 Règles de variation (toutes les variations sont `null` quand la comparaison n'a pas de sens, jamais 0 par défaut) :
-1. **Janvier** : pas de mois précédent dans l'année demandée, donc toutes les variations sont `null`. Pas de comparaison avec décembre de l'année précédente en V1 (décision ouverte n° 5).
-2. **Mois précédent sans aucune transaction** (`a_activite = false`) : toutes les variations du mois courant sont `null`. Un mois vide signifie le plus souvent « pas encore saisi » : comparer avec lui produirait un pourcentage trompeur.
+1. **Janvier** : pas de mois précédent dans l'année demandée, donc toutes les variations sont `null`. Pas de comparaison avec décembre de l'année précédente (décision du 2026-10-13).
+2. **Mois sans aucune transaction, des deux côtés** : toutes les variations sont `null` si le mois courant **ou** le mois précédent a `a_activite = false`. Un mois vide signifie le plus souvent « pas encore saisi » : il n'est comparable ni comme référence ni comme point de comparaison (décision du 2026-10-13). Le mois vide reste présent dans le résultat, avec CA = dépenses = résultat = 0.
 3. **Mois précédent à 0 mais avec activité** (ex. CA précédent = 0 alors qu'il y a eu des dépenses) : la variation en FCFA est calculée, le pourcentage est `null` (pas de division par zéro, pas d'infini).
 4. **Cas général** : `variation = courant − précédent` ; `variation_pct = variation / précédent × 100` si précédent > 0.
 5. **Résultat net** : variation en FCFA seulement. Un pourcentage n'a pas de sens quand le résultat change de signe ou passe par zéro (CDC : l'exemple est en FCFA).
@@ -70,9 +71,10 @@ Aucun index à ajouter a priori : l'index `transactions (entreprise_id, date)` e
 
 ### 2. Écran dédié `/comparaison` (CEO)
 
+- Titre de l'écran suivi d'une ligne d'explication : « Base trésorerie : une facture compte au mois de son paiement. »
 - Sélecteur d'année (année en cours par défaut). Année future non proposée.
-- **Graphique** d'évolution mensuelle : CA, dépenses et résultat net, un point par mois affiché. Le graphique s'arrête au mois en cours (pas de mois futurs). Alternative textuelle : le tableau est lisible sans le graphique, et le graphique porte un titre et un résumé accessible.
-- **Tableau récapitulatif mois par mois** sur l'année : pour chaque mois, CA, Dépenses, Résultat net, et les variations (% et FCFA pour le CA et les dépenses, FCFA pour le résultat). Le mois en cours porte la mention « à date ». Une variation `null` s'affiche « — ». Quand le pourcentage est `null` mais la variation en FCFA existe (règle 3), l'écran affiche la valeur en FCFA seule.
+- **Graphique** d'évolution mensuelle (SVG écrit à la main, composant serveur, sans dépendance : décidé le 2026-10-13) : CA encaissé, dépenses et résultat net, un point par mois affiché. Le graphique s'arrête au mois en cours (pas de mois futurs). Alternative textuelle : le tableau est lisible sans le graphique, et le graphique porte un titre et un résumé accessible.
+- **Tableau récapitulatif mois par mois** sur l'année : pour chaque mois, CA, Dépenses, Résultat net, et les variations (% et FCFA pour le CA et les dépenses, FCFA pour le résultat). Le mois en cours porte la mention « à date ». Une variation `null` s'affiche « — ». Quand le pourcentage est `null` mais la variation en FCFA existe (règle 3), l'écran affiche la valeur en FCFA seule. Une ligne **« Total année à date »** clôt le tableau (CA encaissé, dépenses, résultat net), alimentée par les colonnes de cumul de la dernière ligne.
 - Tableau utilisable sur mobile : défilement horizontal dans son conteneur, jamais sur la page.
 - Contrôle du rôle CEO côté serveur (404 pour les autres rôles, comme `/ecarts`). Lien « Comparaison » ajouté à la navigation du CEO uniquement.
 
@@ -80,19 +82,24 @@ Aucun index à ajouter a priori : l'index `transactions (entreprise_id, date)` e
 
 Le tableau de bord KPI (Module 4.11) n'existe pas encore, et l'accueil du CEO est `/ecarts` depuis la PR #12.
 
-**Proposition provisoire** : un bandeau de trois indicateurs (CA, Dépenses, Résultat net) en haut de `/ecarts`, calculé sur le **dernier mois clos** par rapport au mois qui le précède. Le mois en cours n'est jamais comparé sur l'accueil : un CA à date n'est pas comparable à un mois complet (même logique que l'absence d'alerte d'écart sur un mois non clos au 4.6). Chaque indicateur affiche : la valeur du dernier mois clos, la variation (« CA +12,0 % vs mois précédent », « Résultat net −8 000 FCFA vs mois précédent ») et une flèche.
+**Solution provisoire retenue (décidé le 2026-10-13)** : un bandeau de trois indicateurs (CA, Dépenses, Résultat net) en haut de `/ecarts`, calculé sur le **dernier mois clos** par rapport au mois qui le précède. Le mois en cours n'est jamais comparé sur l'accueil : un CA à date n'est pas comparable à un mois complet (même logique que l'absence d'alerte d'écart sur un mois non clos au 4.6). Chaque indicateur affiche : la valeur du dernier mois clos, la variation (« CA +12,0 % vs mois précédent », « Résultat net −8 000 FCFA vs mois précédent ») et une flèche.
 
-Ce bandeau sera repris tel quel par le tableau de bord du 4.11. L'autre option est de ne rien afficher sur l'accueil avant le 4.11 : décision ouverte n° 3.
+Ce bandeau sera repris tel quel par le tableau de bord du 4.11.
 
-Si le dernier mois clos n'a pas de variation (règles 1 et 2), le bandeau affiche la valeur sans flèche et la mention « Pas de comparaison ».
+**Source des données** : la fonction est appelée pour l'année du dernier mois clos.
+- En règle générale (date de référence de mars à décembre), le dernier mois clos est dans l'année de référence : appel `comparaison_mensuelle(annee, date_reference)`, ligne du mois précédent le mois en cours.
+- **En janvier**, le dernier mois clos est décembre de l'année précédente : le bandeau appelle `comparaison_mensuelle(annee - 1, date_reference)` et compare décembre à novembre. Les 12 mois de l'année précédente sont alors tous `clos`.
+- **En février**, le dernier mois clos est janvier, qui n'a pas de variation (règle 1) : le bandeau affiche la valeur sans comparaison.
 
-### 4. Sens des flèches (décision ouverte n° 1, proposition)
+Si le dernier mois clos n'a pas de variation (règles 1 et 2, ou année précédente sans aucune donnée), le bandeau affiche la valeur sans flèche et la mention « Pas de comparaison ».
 
-Le CDC dit « flèche verte hausse / rouge baisse ». Pris à la lettre, une hausse des **dépenses** serait verte, alors qu'elle est défavorable. Proposition :
+### 4. Sens des flèches (décidé le 2026-10-13)
+
+Le CDC dit « flèche verte hausse / rouge baisse ». Pris à la lettre, une hausse des **dépenses** serait verte, alors qu'elle est défavorable. Décision :
 - **la flèche suit le sens de la variation** : ▲ hausse, ▼ baisse, « = » stable (variation nulle) ;
 - **la couleur suit le caractère favorable** : hausse du CA ou du résultat = favorable (vert), baisse = défavorable (rouge) ; hausse des dépenses = défavorable (rouge), baisse = favorable (vert) ; stable = neutre.
 
-Le signal ne repose **jamais sur la couleur seule** : signe + ou − explicite sur la valeur, flèche, et un libellé accessible (« hausse favorable », « baisse défavorable »). Couleurs : jetons `--color-positif` et `--color-negatif` de `docs/06-design-principes-et-tokens.md` (proposition, PR #15 en revue) une fois les tokens implémentés ; d'ici là, des vert et rouge sobres avec un contraste d'au moins 4.5:1 sur le fond.
+Le signal ne repose **jamais sur la couleur seule** : signe + ou − explicite sur la valeur, flèche, et un libellé accessible (« hausse favorable », « baisse défavorable »). Couleurs : jetons `--color-positif` et `--color-negatif` de `docs/06-design-principes-et-tokens.md` (PR #15) une fois les tokens implémentés ; d'ici là, des vert et rouge sobres avec un contraste d'au moins 4.5:1 sur le fond.
 
 ### 5. Jeu de test chiffré (obligatoire, règle du projet)
 
@@ -113,25 +120,57 @@ Attendus de `comparaison_mensuelle(2026, '2026-05-20')` :
 | Mois | CA | Dépenses | Résultat | Var. CA | Var. CA % | Var. dép. | Var. dép. % | Var. résultat |
 |---|---|---|---|---|---|---|---|---|
 | Janvier | 200 000 | 150 000 | 50 000 | `null` | `null` | `null` | `null` | `null` |
-| Février | 0 | 0 | 0 | −200 000 | −100,00 | −150 000 | −100,00 | −50 000 |
+| Février | 0 | 0 | 0 | `null` | `null` | `null` | `null` | `null` |
 | Mars | 300 000 | 120 000 | 180 000 | `null` | `null` | `null` | `null` | `null` |
 | Avril | 0 | 60 000 | −60 000 | −300 000 | −100,00 | −60 000 | −50,00 | −240 000 |
 | Mai (à date) | 90 000 | 80 000 | 10 000 | +90 000 | `null` | +20 000 | +33,33 | +70 000 |
 
 Ce que chaque ligne prouve :
 - **Janvier** : pas de mois précédent, variations `null` (règle 1).
-- **Février** : un mois à 0 sans activité (`a_activite = false`) est bien présent dans le résultat, avec CA = dépenses = résultat = 0, et sa variation par rapport à janvier est calculée normalement (−100 %).
-- **Mars** : le mois précédent n'a aucune transaction, donc toutes les variations sont `null` (règle 2). Le CA vaut 300 000 : 200 000 de vente + **un seul** paiement de créance de 100 000. Le CA de février vaut 0 alors que la créance existe déjà : la créance n'est pas comptée à sa facturation, et le paiement n'est pas compté deux fois (une seule ligne `transactions`, la créance n'en ajoute aucune).
+- **Février** : règle 2 côté mois courant. Le mois sans transaction (`a_activite = false`) est bien présent dans le résultat, avec CA = dépenses = résultat = 0, et toutes ses variations sont `null` (pas de −100 % par rapport à janvier).
+- **Mars** : règle 2 côté mois précédent : le mois précédent (février) n'a aucune transaction, donc toutes les variations sont `null`. Le CA vaut 300 000 : 200 000 de vente + **un seul** paiement de créance de 100 000. Le CA de février vaut 0 alors que la créance existe déjà : la créance n'est pas comptée à sa facturation, et le paiement n'est pas compté deux fois (une seule ligne `transactions`, la créance n'en ajoute aucune).
 - **Avril** : CA qui tombe à 0 (−100,00 %), dépenses divisées par deux (−50,00 %), résultat qui **change de signe** (180 000 → −60 000, soit −240 000 FCFA, sans pourcentage).
 - **Mai** : le mois précédent a un CA de 0 mais avec activité (dépenses de 60 000) : variation de CA +90 000 FCFA, **pourcentage `null`** (règle 3). Variation des dépenses +33,33 % (20 000 / 60 000 = 0,33333… arrondi à 2 décimales) : cas d'arrondi. Résultat de −60 000 à +10 000 : +70 000 FCFA.
 
 Contrôles de cohérence, tous en `numeric` exact :
-- somme des CA des cinq mois = 590 000 ; somme des dépenses = 410 000 ; somme des résultats = 180 000 = 590 000 − 410 000 ;
+- somme des CA des cinq mois = 590 000 ; somme des dépenses = 410 000 ; somme des résultats = 180 000 = 590 000 − 410 000 (inchangées par la règle 2 : elle ne touche que les variations, pas les montants) ;
+- cumuls attendus (`ca_cumul` / `depenses_cumul` / `resultat_cumul`) :
+
+| Mois | CA cumulé | Dépenses cumulées | Résultat cumulé |
+|---|---|---|---|
+| Janvier | 200 000 | 150 000 | 50 000 |
+| Février | 200 000 | 150 000 | 50 000 |
+| Mars | 500 000 | 270 000 | 230 000 |
+| Avril | 500 000 | 330 000 | 170 000 |
+| Mai | 590 000 | 410 000 | 180 000 |
+
+  La ligne « Total année à date » de l'écran affiche donc 590 000 / 410 000 / 180 000 ;
 - pour chaque mois, `ca`, `depenses` et `resultat` sont **identiques** à `revenus_reel`, `depenses_reel` et `resultat_reel` de `ecarts_mensuels(2026, '2026-05-20')` (preuve de la réutilisation du 4.6) ;
 - mois en cours : `statut_mois = 'en_cours'` pour mai, `clos` pour janvier à avril ;
 - `comparaison_mensuelle(2027, '2026-05-20')` renvoie zéro ligne ; `comparaison_mensuelle(2025, '2026-05-20')` renvoie 12 lignes, toutes `clos`.
 
-Cas de l'accueil : avec cette date de référence, le bandeau compare avril (dernier mois clos) à mars : CA −300 000 FCFA (−100,0 %), Dépenses −60 000 FCFA (−50,0 %), Résultat net −240 000 FCFA. Mai n'est pas utilisé.
+Cas de l'accueil : avec cette date de référence, le bandeau compare avril (dernier mois clos) à mars : CA encaissé −300 000 FCFA (−100,0 %), Dépenses −60 000 FCFA (−50,0 %), Résultat net −240 000 FCFA. Mai n'est pas utilisé.
+
+**Cas de l'accueil en janvier** (second scénario, autre entreprise dédiée dans `BEGIN … ROLLBACK`). Date de référence `2027-01-15`. Transactions :
+
+| Mois | Transactions |
+|---|---|
+| Octobre 2026 | aucune |
+| Novembre 2026 | entrée de 400 000 ; sortie de 150 000 |
+| Décembre 2026 | entrée de 500 000 ; sortie de 120 000 |
+| Janvier 2027 (en cours) | entrée de 10 000 |
+
+Le bandeau appelle `comparaison_mensuelle(2026, '2027-01-15')` : 12 lignes, toutes `clos`, et lit la ligne de décembre. Attendus :
+
+| Mois (2026) | CA encaissé | Dépenses | Résultat | Var. CA | Var. CA % | Var. dép. | Var. dép. % | Var. résultat |
+|---|---|---|---|---|---|---|---|---|
+| Novembre | 400 000 | 150 000 | 250 000 | `null` | `null` | `null` | `null` | `null` |
+| Décembre | 500 000 | 120 000 | 380 000 | +100 000 | +25,00 | −30 000 | −20,00 | +130 000 |
+
+- **Bandeau affiché** : CA encaissé 500 000 FCFA, « +100 000 FCFA (+25,0 %) vs mois précédent », ▲ hausse favorable ; Dépenses 120 000 FCFA, « −30 000 FCFA (−20,0 %) vs mois précédent », ▼ baisse favorable ; Résultat net 380 000 FCFA, « +130 000 FCFA vs mois précédent », ▲ hausse favorable.
+- Novembre a des variations `null` (octobre est sans transaction, règle 2) ; décembre est comparé à novembre.
+- L'entrée de 10 000 de janvier 2027 n'intervient pas dans le bandeau (mois en cours).
+- Contre-preuve : `comparaison_mensuelle(2027, '2027-01-15')` renvoie une seule ligne (janvier 2027, `en_cours`, toutes variations `null`, CA = 10 000).
 
 ### 6. Tests adversariaux (obligatoires, en utilisateur authentifié réel, jamais en `service_role`)
 
@@ -140,7 +179,7 @@ Cas de l'accueil : avec cette date de référence, le bandeau compare avril (der
 3. Le CEO de l'**entreprise B** (avec ses propres transactions) appelle la fonction pour la même année : il ne voit que ses chiffres, rien de A. Le CEO de A ne voit rien de B.
 4. **`anon`** : appel refusé (`permission denied`).
 5. ACL réelles de la fonction : aucun droit pour `public` ni `anon`, droit d'exécution pour `authenticated` ; assertion verrouillée dans le script, et audit d'isolation vert.
-6. Le CEO d'une entreprise **sans aucune transaction** obtient les mois jusqu'au mois de référence, tous à 0, toutes variations `null` (règle 2 appliquée dès février). Aucune division par zéro.
+6. Le CEO d'une entreprise **sans aucune transaction** obtient les mois jusqu'au mois de référence, tous à 0, `a_activite = false` partout, **toutes les variations `null`, dès janvier** (règles 1 et 2 : aucun mois n'est comparable à un autre). Aucune division par zéro.
 
 ## Hors de ce module
 
@@ -161,15 +200,16 @@ PR depuis `feat/module-4.7-comparaison-mensuelle` vers `main`, avec :
 - les captures de l'écran `/comparaison` et du bandeau, en version bureau et mobile ;
 - CI verte.
 
+## Décisions (Ouezz, 2026-10-13)
+
+1. **Flèches** : la flèche suit le sens de la variation (▲ hausse, ▼ baisse, « = » stable), la couleur suit le caractère favorable (une hausse des dépenses est défavorable), toujours avec signe et libellé.
+2. **Libellés** : « CA encaissé » et « Résultat net », avec une ligne d'explication sous le titre de l'écran (base trésorerie, une facture compte au mois de son paiement).
+3. **Accueil** : bandeau provisoire en haut de `/ecarts`, repris ensuite par le tableau de bord 4.11.
+4. **Graphique** : option A, SVG écrit à la main en composant serveur, sans dépendance. Recharts écarté.
+5. **Janvier** : aucune variation (pas de comparaison avec décembre de l'année précédente dans l'écran annuel). Le bandeau d'accueil, lui, compare décembre à novembre quand la date de référence est en janvier (§3).
+6. **Mois vide** : pas de comparaison, des deux côtés (règle 2).
+7. **Ligne « Total année à date »** : ajoutée sous le tableau, vérifiée par le test (590 000 / 410 000 / 180 000).
+
 ## Décisions ouvertes pour Ouezz
 
-1. **Sens et couleur des flèches.** Le CDC dit « flèche verte hausse / rouge baisse ». Proposition du brief : la flèche suit le sens de la variation, la couleur suit le caractère favorable (une hausse des dépenses est rouge), le tout doublé d'un signe et d'un libellé. Alternative : suivre le CDC à la lettre (vert pour toute hausse), au risque de colorer en vert une hausse de dépenses. À trancher.
-2. **Libellé du CA et du résultat.** Le CA est un CA **encaissé** (base trésorerie, comme au 4.6), pas un CA facturé : une facture émise en février et payée en mars compte en mars. Garder les libellés du CDC (« CA réel », « Résultat net ») avec une note explicative sur l'écran, ou les renommer (« Encaissements », « Résultat de trésorerie ») ? Le calcul ne change pas.
-3. **Indicateur sur l'accueil avant le 4.11.** Bandeau provisoire de trois indicateurs en haut de `/ecarts` (proposition du brief, repris ensuite par le 4.11), ou rien sur l'accueil avant le tableau de bord ?
-4. **Bibliothèque de graphique** (deux options).
-   - **A. Graphique SVG écrit à la main, composant serveur.** Aucune dépendance, aucun JavaScript envoyé pour le graphique, rendu identique côté serveur (imprimable, accessible avec un `<title>` et un tableau de repli). Coût : environ une centaine de lignes à écrire et à tester ; pas d'infobulle au survol en V1 (le tableau donne les valeurs exactes).
-   - **B. Recharts** (MIT, version 3.10.1 au moment de la rédaction). Rendu SVG, composant client (donc JavaScript envoyé au navigateur et hydratation), infobulles et légendes prêtes à l'emploi. Poids indicatif : 11 dépendances directes et 7,5 Mo une fois installé sur disque (taille de développement, **pas** le poids envoyé au navigateur, qui n'a pas été mesuré : à mesurer au build avant de décider).
-   - Recommandation : **A** pour la V1 (graphique à trois courbes sur douze points, usage sur mobile, aucune dépendance ajoutée), B seulement si l'interactivité devient un besoin réel.
-5. **Janvier et décembre de l'année précédente.** Proposition : janvier n'a pas de variation (le CDC parle de « l'année en cours »). Alternative : comparer janvier à décembre de l'année précédente (ce n'est pas la comparaison année sur année du CDC 4.14, mais une variation de mois à mois), au prix d'un mois de calcul en plus et d'une lecture hors de l'année affichée.
-6. **Mois vide comme précédent.** Proposition : si le mois précédent n'a aucune transaction, on ne compare pas (variations `null`), car un mois vide veut surtout dire « pas encore saisi ». Alternative : le traiter comme un vrai mois à 0 et afficher des variations de +∞ ou en FCFA seulement.
-7. **Ligne de total sur l'écran.** Ajouter une ligne « Total année à date » (CA, dépenses, résultat) sous le tableau ? Elle n'est pas dans le CDC ; elle est calculée par somme des mois affichés et vérifiée par le test (590 000 / 410 000 / 180 000).
+Aucune.
