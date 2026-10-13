@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
+import { exigerRole } from "@/lib/acces";
 import { createClient } from "@/lib/supabase/server";
 import { FormulaireInvitationComptable } from "@/components/formulaire-invitation-comptable";
 import { BoutonRenvoyerInvitation } from "@/components/bouton-renvoyer-invitation";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export default async function UtilisateursPage() {
+  await exigerRole(["ceo"]);
   const supabase = await createClient();
 
   const {

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { exigerRole } from "@/lib/acces";
 import { createClient } from "@/lib/supabase/server";
 import { SelecteurPeriode } from "@/components/selecteur-periode";
 import { BoutonCreerBudget } from "@/components/bouton-creer-budget";
@@ -11,6 +12,7 @@ export default async function BudgetsPage({
 }: {
   searchParams: Promise<{ mois?: string; annee?: string }>;
 }) {
+  await exigerRole(["ceo"]);
   const params = await searchParams;
   const maintenant = new Date();
   const mois = Number(params.mois) || maintenant.getMonth() + 1;

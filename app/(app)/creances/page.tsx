@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { exigerRole } from "@/lib/acces";
 import { createClient } from "@/lib/supabase/server";
 import { GestionCreances, type LigneCreance } from "@/components/gestion-creances";
 
@@ -50,6 +51,7 @@ export default async function CreancesPage({
 }: {
   searchParams: Promise<{ statut?: string }>;
 }) {
+  await exigerRole(["ceo", "comptable"]);
   const params = await searchParams;
   const supabase = await createClient();
 
