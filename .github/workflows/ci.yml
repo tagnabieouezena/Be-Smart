@@ -133,6 +133,24 @@ jobs:
           fi
           echo "OK — un comptable est bien rejeté (403) par la route d'invitation"
 
+      - name: Test d'accès aux pages par rôle (adversarial, navigation et messages)
+        run: |
+          export NEXT_PUBLIC_SUPABASE_URL="http://127.0.0.1:54321"
+          export NEXT_PUBLIC_SUPABASE_ANON_KEY="$(supabase status -o env | grep '^ANON_KEY' | cut -d '=' -f2- | tr -d '\"')"
+          export SUPABASE_SERVICE_ROLE_KEY="$(supabase status -o env | grep '^SERVICE_ROLE_KEY' | cut -d '=' -f2- | tr -d '\"')"
+
+          npx next start -p 3011 &
+          NEXT_PID=$!
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3011 >/dev/null && break
+            sleep 1
+          done
+
+          STATUS=0
+          APP_URL=http://localhost:3011 node supabase/tests/acces_pages.mjs || STATUS=$?
+          kill "$NEXT_PID"
+          exit $STATUS
+
       - name: Stop Supabase local
         if: always()
         run: supabase stop
