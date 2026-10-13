@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { exigerRole } from "@/lib/acces";
 import { createClient } from "@/lib/supabase/server";
 
 type LigneEcart = {
@@ -102,6 +103,7 @@ export default async function EcartsPage({
 }: {
   searchParams: Promise<{ annee?: string }>;
 }) {
+  await exigerRole(["ceo"], "/ecarts");
   const params = await searchParams;
   const supabase = await createClient();
 

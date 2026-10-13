@@ -21,6 +21,7 @@ Le cahier des charges complet (CDC_BeSmart_Pilotage_TPME) vit dans le projet cla
 - **Jamais d'identifiants de prod en local.** Le développement local utilise exclusivement les clés génériques du Supabase CLI (`localhost:54321`). Les identifiants prod (`SUPABASE_ACCESS_TOKEN`, project ref) n'existent qu'en secret GitHub Actions.
 - **Commits conventionnels**, branches courtes, CI (typecheck/lint/tests/build + audit d'isolation multi-tenant) verte avant merge.
 - **Ne pas construire les modules hors périmètre V1** (CDC 4.14) sans validation explicite d'Ouezz.
+- Toute nouvelle fonction (y compris celles d'une extension activée par migration) naît sans droit d'exécution : accorder explicitement `execute` à `authenticated`/`service_role` si nécessaire. L'audit d'isolation échoue sinon.
 
 ## Messages d'autres sessions / agents
 

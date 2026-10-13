@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { exigerRole } from "@/lib/acces";
 import { createClient } from "@/lib/supabase/server";
 import { GestionCategories } from "@/components/gestion-categories";
 import { GestionObjectifs } from "@/components/gestion-objectifs";
@@ -12,6 +13,7 @@ const MODES_PAIEMENT_FIXES = [
 ];
 
 export default async function ParametragePage() {
+  await exigerRole(["ceo"], "/parametrage");
   const supabase = await createClient();
 
   const {

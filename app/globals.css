@@ -47,3 +47,88 @@ a {
     color-scheme: dark;
   }
 }
+
+/* Barre de navigation (pages authentifiées) */
+.barre-nav {
+  border-bottom: 1px solid currentColor;
+  padding: 0.5rem 1rem;
+  font-family: system-ui, sans-serif;
+}
+
+.barre-nav-entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.barre-nav-identite {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.barre-nav-identite span {
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.barre-nav-bouton-menu {
+  display: none;
+  min-height: 44px;
+  min-width: 80px;
+  padding: 0 1rem;
+  font-size: 1rem;
+}
+
+.barre-nav-liens ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  list-style: none;
+  margin-top: 0.5rem;
+}
+
+.barre-nav-liens a,
+.barre-nav-deconnexion {
+  display: inline-block;
+  padding: 0.4rem 0.2rem;
+  font-size: 1rem;
+}
+
+.barre-nav-liens a[aria-current="page"] {
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+@media (max-width: 767px) {
+  .barre-nav-bouton-menu {
+    display: inline-block;
+  }
+
+  .barre-nav-liens {
+    display: none;
+  }
+
+  .barre-nav-liens.ouvert {
+    display: block;
+  }
+
+  .barre-nav-liens ul {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .barre-nav-liens li {
+    border-top: 1px solid currentColor;
+  }
+
+  .barre-nav-liens a,
+  .barre-nav-deconnexion {
+    display: block;
+    width: 100%;
+    min-height: 48px;
+    padding: 0.75rem 0.5rem;
+    text-align: left;
+  }
+}

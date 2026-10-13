@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { exigerRole } from "@/lib/acces";
 import { createClient } from "@/lib/supabase/server";
 import { FiltresTransactions } from "@/components/filtres-transactions";
 import { FormulaireSaisieTransaction } from "@/components/formulaire-saisie-transaction";
@@ -14,6 +15,7 @@ export default async function TransactionsPage({
     mode_paiement?: string;
   }>;
 }) {
+  await exigerRole(["ceo", "comptable"], "/transactions");
   const params = await searchParams;
   const supabase = await createClient();
 
@@ -31,8 +33,9 @@ export default async function TransactionsPage({
     .eq("id", user.id)
     .single();
 
+  // Session valide sans profil : « / » recrée l'espace ou l'explique (jamais /connexion).
   if (!profil) {
-    redirect("/connexion");
+    redirect("/?next=%2Ftransactions");
   }
 
   const estComptable = profil.role === "comptable";
@@ -73,6 +76,7 @@ export default async function TransactionsPage({
 
       <FiltresTransactions categories={categories ?? []} utilisateurs={utilisateurs ?? []} />
 
+      <div style={{ overflowX: "auto", maxWidth: "100%" }}>
       <table>
         <thead>
           <tr>
@@ -99,6 +103,7 @@ export default async function TransactionsPage({
           ))}
         </tbody>
       </table>
+      </div>
 
       {estComptable && (
         <FormulaireSaisieTransaction
