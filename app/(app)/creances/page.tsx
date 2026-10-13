@@ -51,7 +51,7 @@ export default async function CreancesPage({
 }: {
   searchParams: Promise<{ statut?: string }>;
 }) {
-  await exigerRole(["ceo", "comptable"]);
+  await exigerRole(["ceo", "comptable"], "/creances");
   const params = await searchParams;
   const supabase = await createClient();
 

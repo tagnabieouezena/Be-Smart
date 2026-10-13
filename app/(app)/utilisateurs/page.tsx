@@ -6,7 +6,7 @@ import { BoutonRenvoyerInvitation } from "@/components/bouton-renvoyer-invitatio
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export default async function UtilisateursPage() {
-  await exigerRole(["ceo"]);
+  await exigerRole(["ceo"], "/utilisateurs");
   const supabase = await createClient();
 
   const {

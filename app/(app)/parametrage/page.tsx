@@ -13,7 +13,7 @@ const MODES_PAIEMENT_FIXES = [
 ];
 
 export default async function ParametragePage() {
-  await exigerRole(["ceo"]);
+  await exigerRole(["ceo"], "/parametrage");
   const supabase = await createClient();
 
   const {

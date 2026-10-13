@@ -12,7 +12,7 @@ export default async function BudgetsPage({
 }: {
   searchParams: Promise<{ mois?: string; annee?: string }>;
 }) {
-  await exigerRole(["ceo"]);
+  await exigerRole(["ceo"], "/budgets");
   const params = await searchParams;
   const maintenant = new Date();
   const mois = Number(params.mois) || maintenant.getMonth() + 1;
@@ -34,8 +34,9 @@ export default async function BudgetsPage({
     .eq("id", user.id)
     .single();
 
+  // Session valide sans profil : « / » recrée l'espace ou l'explique (jamais /connexion).
   if (!profil) {
-    redirect("/connexion");
+    redirect("/?next=%2Fbudgets");
   }
 
   const estCeo = profil.role === "ceo";

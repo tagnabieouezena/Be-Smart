@@ -103,7 +103,7 @@ export default async function EcartsPage({
 }: {
   searchParams: Promise<{ annee?: string }>;
 }) {
-  await exigerRole(["ceo"]);
+  await exigerRole(["ceo"], "/ecarts");
   const params = await searchParams;
   const supabase = await createClient();
 
