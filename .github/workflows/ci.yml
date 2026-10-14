@@ -43,7 +43,7 @@ jobs:
         run: npm run lint
 
       - name: Tests unitaires (redirections internes, formatage des montants et variations)
-        run: node --test lib/redirection.test.mjs lib/format.test.mjs
+        run: node --test lib/redirection.test.mjs lib/format.test.mjs lib/solde.test.mjs
 
       - name: Start Supabase local (migrations + seed)
         run: supabase start
@@ -95,6 +95,12 @@ jobs:
           psql "$(supabase status -o env | grep DB_URL | cut -d '=' -f2- | tr -d '\"')" \
             -v ON_ERROR_STOP=1 \
             -f supabase/tests/comparaison_mensuelle.sql
+
+      - name: Test solde de caisse initial daté (règle unique + adversarial, prérequis du Module 4.8)
+        run: |
+          psql "$(supabase status -o env | grep DB_URL | cut -d '=' -f2- | tr -d '\"')" \
+            -v ON_ERROR_STOP=1 \
+            -f supabase/tests/solde_initial_date.sql
 
       - name: Test créances — paiements concurrents (deux sessions psql, Module 4.5)
         run: |

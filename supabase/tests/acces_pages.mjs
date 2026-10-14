@@ -134,6 +134,42 @@ for (const [role, chemin, liens, absents] of [
   verifier("bandeau absent pour le comptable (404)", bandeauComptable.status === 404);
 }
 
+// 4 ter. Solde de caisse daté (prérequis du Module 4.8) : /parametrage porte le
+//        montant ET la date ; « Aucune date renseignée » tant que la date est le
+//        défaut. Les valeurs chiffrées sont prouvées par solde_initial_date.sql ;
+//        ici : l'écran, l'écriture par le CEO, le refus d'une date future et le
+//        refus au comptable. Les valeurs d'origine sont rétablies à la fin.
+{
+  const A = "a0000000-0000-0000-0000-000000000001";
+  const enteteJson = (session) => ({ apikey: ANON, Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json", Prefer: "return=representation" });
+  const patch = (session, corps) => json(`${SB}/rest/v1/entreprises?id=eq.${A}`, { method: "PATCH", headers: enteteJson(session), body: JSON.stringify(corps) });
+  const normaliser = (texte) => texte.replace(/[\u202f\u00a0]/g, " ").replace(/&#x27;/g, "'");
+
+  const origine = await json(`${SB}/rest/v1/entreprises?id=eq.${A}&select=solde_initial,date_solde_initial`, { headers: enteteJson(sessions.ceo) });
+  const soldeOrigine = String(origine.corps?.[0]?.solde_initial);
+  const dateOrigine = origine.corps?.[0]?.date_solde_initial;
+  const avant = normaliser((await page("/parametrage", sessions.ceo)).texte);
+  verifier("/parametrage : champs « Solde de caisse (FCFA) » et « Date du solde »", avant.includes("Solde de caisse (FCFA)") && avant.includes("Date du solde"));
+  verifier("/parametrage : « Aucune date renseignée » tant que la date est le défaut", avant.includes("Aucune date renseignée"));
+
+  const ecriture = await patch(sessions.ceo, { solde_initial: "125000", date_solde_initial: "2026-09-30" });
+  verifier("le CEO enregistre montant (en chaîne) et date ensemble", ecriture.status === 200 && Array.isArray(ecriture.corps) && ecriture.corps.length === 1, `HTTP ${ecriture.status}`);
+  const apres = normaliser((await page("/parametrage", sessions.ceo)).texte);
+  verifier("/parametrage : « Solde de 125 000 FCFA à la fin du 30 septembre 2026 »", apres.includes("Solde de 125 000 FCFA à la fin du 30 septembre 2026"));
+  verifier("/parametrage : plus de « Aucune date renseignée » une fois la date saisie", !apres.includes("Aucune date renseignée"));
+
+  const futur = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
+  const refus = await patch(sessions.ceo, { date_solde_initial: futur });
+  verifier("date future refusée avec le message de la base", refus.status >= 400 && JSON.stringify(refus.corps).includes("ne peut pas être dans le futur"), `HTTP ${refus.status}`);
+
+  const comptable = await patch(sessions.comptable, { solde_initial: "1", date_solde_initial: "2026-01-01" });
+  verifier("le comptable ne peut pas modifier le solde ni sa date (0 ligne)", comptable.status === 200 && Array.isArray(comptable.corps) && comptable.corps.length === 0, `HTTP ${comptable.status}`);
+
+  // Rétablit les valeurs d'origine (défaut de la base).
+  const retour = await patch(sessions.ceo, { solde_initial: soldeOrigine, date_solde_initial: dateOrigine });
+  verifier("valeurs d'origine rétablies", retour.status === 200 && retour.corps?.[0]?.date_solde_initial === dateOrigine && String(retour.corps?.[0]?.solde_initial) === soldeOrigine, `HTTP ${retour.status}`);
+}
+
 // 5. Rapprochement en comptable : la lecture des lignes de revenu prévu (RLS
 //    inchangée) et l'écriture d'une transaction rapprochée fonctionnent
 //    toujours, alors que /budgets est fermé au comptable.
