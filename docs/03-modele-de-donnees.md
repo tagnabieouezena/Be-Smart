@@ -11,7 +11,7 @@
 ## Entités principales
 
 ### `entreprises`
-Nom, secteur, devise par défaut (FCFA), solde de caisse initial, date de création.
+Nom, secteur, devise par défaut (FCFA), solde de caisse initial **daté** (`solde_initial` = solde à la **fin** de la journée `date_solde_initial`, défaut `2000-01-01` = aucune date renseignée ; règle unique du solde dans la fonction `solde_caisse_a`, voir `docs/briefs/Solde-Initial-Date.md`), date de création.
 → Accès : CEO (la sienne, lecture/écriture) ; super-admin Be Smart (toutes, **lecture seule** — décision Ouezz, voir ci-dessous).
 
 ### `utilisateurs`

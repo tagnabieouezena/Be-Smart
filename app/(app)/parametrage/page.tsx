@@ -3,7 +3,7 @@ import { exigerRole } from "@/lib/acces";
 import { createClient } from "@/lib/supabase/server";
 import { GestionCategories } from "@/components/gestion-categories";
 import { GestionObjectifs } from "@/components/gestion-objectifs";
-import { FormulaireSoldeInitial } from "@/components/formulaire-solde-initial";
+import { FormulaireSoldeCaisse } from "@/components/formulaire-solde-caisse";
 
 const MODES_PAIEMENT_FIXES = [
   { valeur: "cash", libelle: "Cash" },
@@ -40,7 +40,7 @@ export default async function ParametragePage() {
     await Promise.all([
       supabase
         .from("entreprises")
-        .select("id, solde_initial")
+        .select("id, solde_initial, date_solde_initial")
         .eq("id", profil.entreprise_id)
         .single(),
       supabase
@@ -58,9 +58,10 @@ export default async function ParametragePage() {
       <h1>Paramétrage</h1>
 
       {entreprise && (
-        <FormulaireSoldeInitial
+        <FormulaireSoldeCaisse
           entrepriseId={entreprise.id}
           soldeInitial={entreprise.solde_initial}
+          dateSoldeInitial={entreprise.date_solde_initial}
         />
       )}
 
