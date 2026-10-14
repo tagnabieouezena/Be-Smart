@@ -58,13 +58,13 @@ async function page(chemin, session) {
   return { status: reponse.status, location: reponse.headers.get("location"), texte };
 }
 
-const PAGES = ["/ecarts", "/comparaison", "/budgets", "/transactions", "/creances", "/parametrage", "/utilisateurs", "/supervision"];
+const PAGES = ["/ecarts", "/comparaison", "/syntheses", "/budgets", "/transactions", "/creances", "/parametrage", "/utilisateurs", "/supervision"];
 
 // Statut attendu de chaque page, par rôle.
 const ATTENDU = {
-  ceo: { "/ecarts": 200, "/comparaison": 200, "/budgets": 200, "/transactions": 200, "/creances": 200, "/parametrage": 200, "/utilisateurs": 200, "/supervision": 404 },
-  comptable: { "/ecarts": 404, "/comparaison": 404, "/budgets": 404, "/transactions": 200, "/creances": 200, "/parametrage": 404, "/utilisateurs": 404, "/supervision": 404 },
-  supervision: { "/ecarts": 404, "/comparaison": 404, "/budgets": 404, "/transactions": 404, "/creances": 404, "/parametrage": 404, "/utilisateurs": 404, "/supervision": 200 },
+  ceo: { "/ecarts": 200, "/comparaison": 200, "/syntheses": 200, "/budgets": 200, "/transactions": 200, "/creances": 200, "/parametrage": 200, "/utilisateurs": 200, "/supervision": 404 },
+  comptable: { "/ecarts": 404, "/comparaison": 404, "/syntheses": 404, "/budgets": 404, "/transactions": 200, "/creances": 200, "/parametrage": 404, "/utilisateurs": 404, "/supervision": 404 },
+  supervision: { "/ecarts": 404, "/comparaison": 404, "/syntheses": 404, "/budgets": 404, "/transactions": 404, "/creances": 404, "/parametrage": 404, "/utilisateurs": 404, "/supervision": 200 },
 };
 
 const COMPTES = {
@@ -100,8 +100,8 @@ for (const [role, cible] of [["ceo", "/ecarts"], ["comptable", "/transactions"],
 
 // 4. Barre de navigation : liens affichés par rôle.
 for (const [role, chemin, liens, absents] of [
-  ["comptable", "/transactions", ["/transactions", "/creances"], ["/ecarts", "/comparaison", "/budgets", "/parametrage", "/utilisateurs"]],
-  ["ceo", "/ecarts", ["/ecarts", "/comparaison", "/budgets", "/transactions", "/creances", "/parametrage", "/utilisateurs"], ["/supervision"]],
+  ["comptable", "/transactions", ["/transactions", "/creances"], ["/ecarts", "/comparaison", "/syntheses", "/budgets", "/parametrage", "/utilisateurs"]],
+  ["ceo", "/ecarts", ["/ecarts", "/comparaison", "/syntheses", "/budgets", "/transactions", "/creances", "/parametrage", "/utilisateurs"], ["/supervision"]],
 ]) {
   const { texte } = await page(chemin, sessions[role]);
   const nav = texte.match(/<nav[\s\S]*?<\/nav>/)?.[0] ?? "";
@@ -132,6 +132,23 @@ for (const [role, chemin, liens, absents] of [
   verifier("/comparaison : année future non proposée (retombe sur l'année en cours)", futur.status === 200 && !futur.texte.includes(`<option value="${new Date().getFullYear() + 5}"`));
   const bandeauComptable = await page("/ecarts", sessions.comptable);
   verifier("bandeau absent pour le comptable (404)", bandeauComptable.status === 404);
+}
+
+// 4 quater. Module 4.8 : écran /syntheses (tableau groupé par trimestre). Les valeurs
+//           chiffrées sont prouvées par syntheses.sql ; ici : structure de l'écran, état
+//           de l'objectif du seed (septembre 2026 : objectif 1 000 000, CA très inférieur),
+//           année future non proposée, comptable en 404.
+{
+  const synth = await page("/syntheses?annee=2026", sessions.ceo);
+  // React sépare les morceaux de texte par des commentaires <!-- --> : on les retire avant de chercher.
+  const texte = synth.texte.replace(/<!--.*?-->/g, "").replace(/[\u202f\u00a0]/g, " ").replace(/&#x27;/g, "'");
+  verifier("/syntheses : titre, explication « base trésorerie » et renvoi vers le Paramétrage", texte.includes("Synthèses") && texte.includes("Base trésorerie : une facture compte au mois de son paiement.") && /href="\/parametrage"/.test(synth.texte));
+  verifier("/syntheses : colonnes demandées", ["CA encaissé", "Dépenses", "Résultat net", "Objectif de CA", "Taux de réalisation", "Solde de caisse au début", "Solde de caisse à la fin"].every((c) => texte.includes(c)));
+  verifier("/syntheses : totaux de trimestre et total de l'année", ["Total T1", "Total T2", "Total T3", "Total année 2026"].every((c) => texte.includes(c)));
+  verifier("/syntheses : objectif manqué écrit en toutes lettres (jamais la couleur seule)", texte.includes("✗ Objectif manqué") && texte.includes("Pas d'objectif"));
+  verifier("/syntheses : tableau dans un conteneur à défilement horizontal, en-têtes avec scope", synth.texte.includes("tableau-defilant") && synth.texte.includes('scope="col"') && synth.texte.includes('scope="row"'));
+  const futur = await page(`/syntheses?annee=${new Date().getFullYear() + 5}`, sessions.ceo);
+  verifier("/syntheses : année future non proposée", futur.status === 200 && !futur.texte.includes(`<option value="${new Date().getFullYear() + 5}"`));
 }
 
 // 4 ter. Solde de caisse daté (prérequis du Module 4.8) : /parametrage porte le
@@ -204,7 +221,7 @@ const LIGNE = "a6000000-0000-0000-0000-000000000001";
 //    ou affiche « Compte non rattaché » ; `next` est suivi seulement s'il est
 //    interne et autorisé pour le rôle.
 const MOT_PROSCRIT = "g\u00e9rant"; // écrit en échappement pour garder `grep -ri` vide dans le dépôt
-const MODULES = ["/ecarts", "/comparaison", "/budgets", "/transactions", "/creances", "/parametrage", "/utilisateurs"];
+const MODULES = ["/ecarts", "/comparaison", "/syntheses", "/budgets", "/transactions", "/creances", "/parametrage", "/utilisateurs"];
 {
   const echec = await page("/auth/lien-invalide?type=signup-echec", null);
   verifier("signup-echec : bouton « Réessayer » vers /", echec.texte.includes("Réessayer") && /href="\/"/.test(echec.texte));
