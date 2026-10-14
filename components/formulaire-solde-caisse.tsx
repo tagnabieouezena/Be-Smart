@@ -3,16 +3,26 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { formaterMontant } from "@/lib/format";
+import { aujourdhuiISO, estDateParDefaut, formaterDateLongue } from "@/lib/solde";
 
-export function FormulaireSoldeInitial({
+// Solde de caisse daté : le montant et sa date sont saisis et enregistrés
+// ENSEMBLE (un seul update, atomique). Le montant part en chaîne (jamais de
+// Number()). Aucun solde n'est calculé ici : la règle vit dans la base.
+export function FormulaireSoldeCaisse({
   entrepriseId,
   soldeInitial,
+  dateSoldeInitial,
 }: {
   entrepriseId: string;
   soldeInitial: number;
+  dateSoldeInitial: string;
 }) {
   const router = useRouter();
+  const sansDate = estDateParDefaut(dateSoldeInitial);
   const [valeur, setValeur] = useState(String(soldeInitial));
+  // Date par défaut : champ vide, le CEO doit choisir une vraie date.
+  const [dateSolde, setDateSolde] = useState(sansDate ? "" : dateSoldeInitial);
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
 
@@ -24,7 +34,7 @@ export function FormulaireSoldeInitial({
     const supabase = createClient();
     const { error } = await supabase
       .from("entreprises")
-      .update({ solde_initial: Number(valeur) })
+      .update({ solde_initial: valeur, date_solde_initial: dateSolde })
       .eq("id", entrepriseId);
 
     setEnCours(false);
@@ -38,19 +48,40 @@ export function FormulaireSoldeInitial({
   }
 
   return (
-    <section>
-      <h2>Solde de caisse initial</h2>
-      <form onSubmit={enregistrer} style={{ display: "grid", gap: "0.5rem", maxWidth: 320 }}>
+    <section aria-labelledby="titre-solde-caisse">
+      <h2 id="titre-solde-caisse">Solde de caisse</h2>
+      <p>
+        {sansDate
+          ? "Aucune date renseignée : toutes les transactions saisies s'ajoutent à ce montant."
+          : `Solde de ${formaterMontant(soldeInitial)} à la fin du ${formaterDateLongue(dateSoldeInitial)}.`}
+      </p>
+      <form onSubmit={enregistrer} style={{ display: "grid", gap: "0.5rem", maxWidth: 420 }}>
         <label>
-          Solde initial (FCFA)
+          Solde de caisse (FCFA)
           <input
             required
             type="number"
+            step="any"
             value={valeur}
             onChange={(e) => setValeur(e.target.value)}
           />
         </label>
-        {erreur && <p style={{ color: "crimson" }}>{erreur}</p>}
+        <label>
+          Date du solde
+          <input
+            required
+            type="date"
+            max={aujourdhuiISO()}
+            value={dateSolde}
+            onChange={(e) => setDateSolde(e.target.value)}
+          />
+        </label>
+        <p style={{ fontSize: "0.9rem" }}>
+          Indiquez le solde de votre caisse à la fin de cette journée, après toutes les opérations du jour. Les
+          transactions de cette date et des dates antérieures ne s&apos;y ajoutent pas : elles sont déjà dans ce solde.
+          L&apos;ordre dans lequel vous saisissez le solde et l&apos;historique n&apos;a aucune importance.
+        </p>
+        {erreur && <p style={{ color: "var(--color-negatif)" }}>{erreur}</p>}
         <button type="submit" disabled={enCours}>
           {enCours ? "Enregistrement..." : "Enregistrer"}
         </button>
