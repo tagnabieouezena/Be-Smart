@@ -22,6 +22,11 @@
   - Dette restante : réglages Auth de prod à reporter à la main (note `docs/05-deploiement-prod-reglages-auth.md`) ; parcours changement d'e-mail et lien magique non construits, modèles d'e-mail à créer avant de les activer ; compte invité orphelin (dette du 4.1) refusé avec un message, à réinviter par le CEO ; parcours d'e-mails testé uniquement en local (Mailpit).
   - Dépend de : fournisseur SMTP (Phase 5) ; tableau de bord KPI (4.11) pour remplacer `/ecarts` comme accueil du CEO ; chantier design global (décisions dans `docs/06-design-principes-et-tokens.md` : accent indigo, thème clair seul en V1, police Inter, pas de recherche globale en V1 ; implémentation à faire).
 
+- [x] Brief transverse — Solde de caisse initial daté (prérequis du Module 4.8) ✅ mergée dans `main` (PR #20, merge `b2c9cd9`, migration approuvée par Ouezz le 2026-10-14)
+  - Décisions actées par Ouezz (2026-10-13) : le solde initial est **daté** (option A) ; `solde_initial` est le solde de caisse à la **fin** de la journée `date_solde_initial` ; défaut `2000-01-01` (écran : « Aucune date renseignée ») ; date future refusée ; pas d'historique des modifications en V1 ; aucune restriction de lecture du solde pour le comptable en V1.
+  - Réalisation : règle unique `solde_caisse_a(date)` (solde à la fin d'une journée, valable avant comme après la date du solde, aucun double comptage quel que soit l'ordre de saisie) ; `ecarts_mensuels` (4.6) l'appelle, seule fonction modifiée ; Paramétrage : montant et date saisis ensemble ; test SQL (scénarios chiffrés, trois ordres de saisie, contrôles négatifs) et test de route en CI.
+  - À retenir : tout nouveau module qui a besoin d'un solde de caisse (4.8, 4.9, 4.11) appelle `solde_caisse_a`, il ne recalcule pas le solde.
+
 ## Phase 2 — Cœur du pilotage
 - [x] Module 4.3 — Budget prévisionnel mensuel ✅ mergée dans `main` (PR #4, commit `c6b2e66`)
   - Point de sécurité à retenir pour les modules suivants : la cohérence entre tables liées (budget/catégorie/entreprise) doit être vérifiée par trigger `BEFORE INSERT/UPDATE`, pas seulement par RLS — une policy `entreprise_id = current_entreprise_id()` seule laisse passer une ligne pointant vers un budget ou une catégorie d'une autre entreprise tant que la ligne elle-même porte le bon `entreprise_id`. Testé explicitement (test adversarial #4 de ce module) ; à reproduire pour toute nouvelle table qui référence plusieurs tables scopées par entreprise.
@@ -46,7 +51,7 @@
   - Décisions actées par Ouezz : CA encaissé (base trésorerie : une facture compte au mois de son paiement) et résultat net, libellés « CA encaissé » / « Résultat net » avec ligne d'explication ; variation en % pour le CA et les dépenses, en FCFA seulement pour le résultat ; un mois sans transaction n'est comparable ni comme référence ni comme point de comparaison ; janvier sans variation sur le tableau annuel ; bandeau d'accueil = dernier mois clos contre le mois calendaire précédent (année précédente comprise) ; flèche selon le sens, couleur selon le caractère favorable, toujours avec signe et libellé ; graphique SVG écrit à la main (sans dépendance) ; ligne « Total année à date ».
   - Réalisation : trois fonctions `security invoker` — `variation_mensuelle` (pure, seule source des règles de variation), `comparaison_mensuelle` (écran `/comparaison`), `comparaison_accueil` (bandeau en haut de `/ecarts`) — le réel étant lu uniquement dans `ecarts_mensuels` (4.6). CEO uniquement ; test SQL chiffré et adversarial ; formatage dans `lib/format.ts` (aucun calcul de montant côté TypeScript).
   - À retenir : le bandeau est provisoire et sera repris tel quel par le tableau de bord KPI (4.11) ; `service_role` figure dans l'ACL des fonctions (privilèges par défaut Supabase, comme `ecarts_mensuels`), accepté par Ouezz.
-- [ ] Module 4.8 — Synthèses mensuelle, trimestrielle, annuelle
+- [ ] Module 4.8 — Synthèses mensuelle, trimestrielle, annuelle — brief mergé (PR #19, `docs/briefs/Module-4.8-Syntheses.md`), prérequis « solde initial daté » mergé (PR #20) ; implémentation à faire
 - [ ] Module 4.9 — Cashflow prévisionnel
 
 ## Phase 4 — Tableau de bord et alertes
