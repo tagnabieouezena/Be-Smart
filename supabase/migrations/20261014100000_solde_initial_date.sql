@@ -44,7 +44,9 @@ begin
 end;
 $$;
 
-revoke all on function public.verifier_date_solde_initial() from public;
+-- Fonction de trigger : aucun EXECUTE nécessaire (il n'est vérifié qu'à la création du
+-- trigger). On retire aussi les droits accordés par défaut aux rôles applicatifs.
+revoke all on function public.verifier_date_solde_initial() from public, anon, authenticated, service_role;
 
 create trigger entreprises_date_solde_initial
   before insert or update of date_solde_initial on public.entreprises

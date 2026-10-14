@@ -127,6 +127,12 @@ begin
     raise exception 'date_solde_initial doit être not null avec le défaut 2000-01-01';
   end if;
 
+  -- La fonction du trigger n'est exécutable par aucun rôle applicatif.
+  if has_function_privilege('anon', 'public.verifier_date_solde_initial()'::regprocedure, 'execute')
+     or has_function_privilege('authenticated', 'public.verifier_date_solde_initial()'::regprocedure, 'execute') then
+    raise exception 'verifier_date_solde_initial est exécutable par anon ou authenticated';
+  end if;
+
   -- Le trigger de date future existe, sur insert et sur update de la colonne.
   if not exists (
     select 1 from pg_trigger
