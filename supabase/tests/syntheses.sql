@@ -136,6 +136,17 @@ begin
   if has_function_privilege('anon', v_nom::regprocedure, 'execute') then raise exception 'ACL : anon peut exécuter %', v_nom; end if;
   if not has_function_privilege('authenticated', v_nom::regprocedure, 'execute') then raise exception 'ACL : authenticated ne peut pas exécuter %', v_nom; end if;
 
+  -- Pourquoi cette assertion porte sur le CORPS de la fonction et non sur son
+  -- comportement : la restriction au CEO est appliquée à plusieurs niveaux
+  -- indépendants (la CTE ent de syntheses_periodes, celles de comparaison_mensuelle
+  -- et de solde_caisse_a, la RLS d'objectifs_ca). Cette défense en profondeur
+  -- masque le retrait d'un seul niveau : le comptable n'obtient toujours aucune
+  -- ligne, donc aucun test de résultat ne peut échouer. Seule une lecture du corps
+  -- garantit que syntheses_periodes se protège elle-même (contrôle négatif 1a).
+  if pg_get_functiondef(v_nom::regprocedure) !~ 'current_role_utilisateur\(\)\s*=\s*''ceo''' then
+    raise exception '% doit se restreindre elle-même au CEO (current_role_utilisateur() = ''ceo'')', v_nom;
+  end if;
+
   -- Aucun nouvel index : ceux qui servent la fonction existent déjà.
   if not exists (select 1 from pg_class where relname = 'transactions_date_idx')
      or not exists (select 1 from pg_class where relname = 'objectifs_ca_unique_periode_idx') then
