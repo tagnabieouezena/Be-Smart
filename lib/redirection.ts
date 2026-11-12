@@ -26,7 +26,7 @@ export function accueilPourRole(role: "ceo" | "comptable" | "supervision"): stri
 // suivi après la création de l'espace ; ce n'est PAS le contrôle d'accès (chaque
 // page garde son propre contrôle de rôle côté serveur, et la RLS reste inchangée).
 const PAGES_PAR_ROLE: Record<"ceo" | "comptable" | "supervision", string[]> = {
-  ceo: ["/ecarts", "/comparaison", "/budgets", "/transactions", "/creances", "/parametrage", "/utilisateurs"],
+  ceo: ["/ecarts", "/comparaison", "/syntheses", "/budgets", "/transactions", "/creances", "/parametrage", "/utilisateurs"],
   comptable: ["/transactions", "/creances"],
   supervision: ["/supervision"],
 };
