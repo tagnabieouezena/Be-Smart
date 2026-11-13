@@ -55,7 +55,9 @@
   - Décisions actées par Ouezz : chaque période n'affiche que l'objectif saisi à son propre niveau (aucun prorata) ; période sans transaction → « Aucune saisie », sans taux ; trimestre et année en cours → taux « à date » sans verdict ; solde initial daté (prérequis, PR #20) ; tableau unique groupé par trimestre avec sélecteur d'année ; exercice = année civile ; solde négatif avec signe moins et mention, sans bandeau d'alerte.
   - Réalisation : une seule fonction `security invoker` `syntheses_periodes(p_annee, p_date_reference)` (colonne `granularite`), écran `/syntheses` (CEO uniquement) ; réel lu dans `comparaison_mensuelle` (4.7), soldes = `solde_caisse_a` au 31 décembre précédent + cumul des résultats ; taux tronqué à 1 décimale, verdict sur la comparaison exacte en `numeric`, calculés en SQL. Aucune table, policy ni index nouveau. Test SQL chiffré et adversarial (brief : `docs/briefs/Module-4.8-Syntheses.md`, PR #19).
   - À retenir : la restriction au CEO est appliquée à plusieurs niveaux (défense en profondeur) ; le test vérifie donc aussi, sur le corps de la fonction, que `syntheses_periodes` se restreint elle-même au CEO, sans quoi le retrait de sa seule protection passerait inaperçu.
-- [ ] Module 4.9 — Cashflow prévisionnel
+- [ ] Brief transverse — Lien créance ↔ revenu prévu (prérequis du Module 4.9) — brief `docs/briefs/Lien-Creance-Revenu-Prevu.md` (PR #23) ; décisions produit P1 à P8 à valider par Ouezz, puis implémentation (migration : colonne `creances.ligne_revenu_prevu_id`, trigger, vue `v_lignes_revenu_facturation`)
+- [ ] Module 4.9 — Cashflow prévisionnel — brief `docs/briefs/Module-4.9-Cashflow-Previsionnel.md` (PR #23), décisions D1 à D9 et choix T1 à T9 décidés par Ouezz le 2026-11-12 ; implémentation après le prérequis ci-dessus
+  - Dette décidée (D8, 2026-11-12) : interdire les transactions datées dans le futur au Journal (4.4) — petit module ultérieur. D'ici là, le 4.9 les ignore (ni dans le solde de départ, ni dans le réel à date).
 
 ## Phase 4 — Tableau de bord et alertes
 - [ ] Module 4.10 — Répartition des dépenses par catégorie

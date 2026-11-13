@@ -1,6 +1,6 @@
 # Brief Claude Code — Module 4.9 : Cashflow prévisionnel
 
-*Depuis `main` (Modules 4.1 à 4.7 mergés, solde de caisse initial daté mergé ; le Module 4.8 est indépendant de celui-ci). **Ce brief suppose le prérequis « Lien revenu prévu ↔ créance » décrit plus bas (décision D4) : il doit être validé par Ouezz avant toute implémentation.** Branche : `feat/module-4.9-cashflow`.*
+*Depuis `main` (Modules 4.1 à 4.8 mergés, solde de caisse initial daté mergé). **Décisions D1 à D9 et choix T1 à T9 décidés par Ouezz le 2026-11-12.** **Ce brief suppose le prérequis « Lien créance ↔ revenu prévu » (`docs/briefs/Lien-Creance-Revenu-Prevu.md`, décision D4) mergé avant toute implémentation.** Branche : `feat/module-4.9-cashflow`.*
 
 ## Objectif (CDC 4.9)
 
@@ -16,7 +16,8 @@ Module en **lecture seule** : aucune nouvelle table, aucune écriture, aucune po
 ## Ce qui existe déjà et doit être réutilisé (rien n'est recalculé)
 
 - **Le point de départ** : `solde_caisse_a(date)` (solde à la fin d'une journée, règle unique du solde daté).
-- **Le prévu** : la vue `v_budget_mensuel_totaux` (4.3, lignes `annule` exclues) : `total_ca_previsionnel`, `total_charges_fixes`, `total_charges_variables` par `(entreprise, annee, mois)`. Une seule règle du prévu dans tout le produit.
+- **Le prévu** : la vue `v_budget_mensuel_totaux` (4.3, lignes `annule` exclues) : `total_charges_fixes`, `total_charges_variables` par `(entreprise, annee, mois)`. Une seule règle du prévu dans tout le produit.
+- **Le CA prévu restant à facturer** : la vue `v_lignes_revenu_facturation` (prérequis) : `reste_a_facturer` par ligne de CA non annulée = `max(montant_estime − montant facturé des créances liées, 0)`. Le 4.9 la somme par mois, il ne recalcule pas la consommation.
 - **Les créances** : `creances_situation(p_date_reference)` (4.5) : `reste_du`, `echeance`, `jours_retard`, `tranche`. Le reste dû n'est jamais recalculé ici.
 - **Le réel du mois en cours** : voir « Mois en cours ». Seule lecture nouvelle du réel, justifiée là.
 - Côté application : `lib/format.ts`, `exigerRole()`, la barre du CEO, le conteneur de tableau défilant, le composant SVG du 4.7 (graphique).
@@ -38,10 +39,11 @@ Module en **lecture seule** : aucune nouvelle table, aucune écriture, aucune po
 
 Deux sources, additionnées sans double comptage :
 
-1. **Encaissements du budget** = `total_ca_previsionnel` **moins** les lignes de CA prévisionnel **liées à une créance** (prérequis) ; lignes `annule` déjà exclues par la vue. Mois en cours : `max(budget hors lignes liées − (CA réel à date − paiements de créances reçus ce mois à date), 0)`, où CA réel à date = somme des entrées du mois dont `date <= p_date_reference`. Les paiements de créances (`transactions.creance_id`) sont retirés du réel parce qu'ils correspondent aux lignes liées (retirées du budget) ou à des créances non budgétées : ils ne doivent pas consommer le budget de ventes.
+1. **Encaissements du budget** = somme des `reste_a_facturer` des lignes de CA du mois (`v_lignes_revenu_facturation`, prérequis) : chaque ligne est **consommée** par le montant facturé de ses créances liées, plafonnée à 0 **par ligne** ; lignes `annule` exclues. Mois en cours : `max(reste à facturer du mois − (CA réel à date − paiements de créances reçus ce mois à date), 0)`, où CA réel à date = somme des entrées du mois dont `date <= p_date_reference`. Les paiements de créances (`transactions.creance_id`) sont retirés du réel parce que leur créance a déjà consommé sa ligne (ou n'est pas budgétée) : ils ne doivent pas consommer une seconde fois le budget de ventes.
 2. **Encaissements des créances** = reste dû des créances **attendues** ce mois-là. Une créance est **attendue** si son reste dû est > 0 et si elle n'est pas dans la tranche `plus_60` (plus de 60 jours de retard : douteuse, exclue de la projection, décision D5). Sa **date d'encaissement attendue** = `greatest(echeance, p_date_reference)` (une créance en retard est attendue aujourd'hui), décalée du retard simulé s'il y en a un. Une créance attendue hors du premier mois non projeté ou au-delà de l'horizon n'apparaît dans aucune ligne.
-   - Une ligne de CA liée à une créance est **remplacée** par le reste dû réel de cette créance, à la date attendue de la créance (le reste dû et l'échéance font foi). Si la créance est soldée ou exclue (`plus_60`), la ligne liée disparaît et rien n'est ajouté.
-   - Une créance **non liée** à une ligne du budget s'ajoute aux encaissements du budget (le CEO n'a pas dit que le budget la couvrait). Le risque de double comptage dans ce cas est assumé et signalé à l'écran (« N créances ne sont rattachées à aucune ligne du budget »).
+   - Toute créance attendue compte pour son reste dû, **liée ou non**. Une créance liée a déjà retiré son montant dû de sa ligne (point 1) : la facture **déplace** sa part du budget vers la créance, avec sa vraie échéance et ses paiements reçus, sans double comptage ni perte. Quand la facture couvre la ligne, cela revient à remplacer la ligne par la créance ; une facture partielle laisse le reste de la ligne attendu (scénario 7). Si la créance est soldée ou exclue (`plus_60`), la ligne consommée ne réapparaît pas.
+   - Une créance **non liée** ne consomme aucune ligne : elle s'ajoute aux encaissements du budget (le CEO n'a pas dit que le budget la couvrait). Le risque de double comptage dans ce cas est assumé et signalé à l'écran (« N créances ne sont rattachées à aucune ligne du budget »).
+   - Une créance liée à une ligne **annulée** (lien inerte, voir le prérequis) se comporte comme une créance non liée.
 
 ### Trimestres
 
@@ -49,7 +51,7 @@ Trimestre civil (T1 = janvier à mars…). Un trimestre est affiché s'il contie
 
 ### Alerte de solde projeté négatif (décision D7)
 
-`solde_negatif` = `solde_fin < 0` (strictement : un solde exactement nul n'alerte pas), par mois et par trimestre. L'écran affiche en haut un bandeau « Solde de caisse projeté négatif dès {mois année} : {montant} » **en texte et en icône**, jamais la couleur seule, avec le vrai signe moins. Le module 4.9 **n'envoie aucune notification** : le Module 4.12 lira simplement `cashflow_previsionnel()` (lignes `solde_negatif`, premier mois concerné) ; aucun objet SQL de plus.
+`solde_negatif` = `solde_fin < 0` (strictement : un solde exactement nul n'alerte pas), par mois et par trimestre. Ce bandeau applique le CDC §4.6 (« alertes visuelles en cas de solde de caisse prévisionnel négatif ») ; il ne contredit pas le 4.8, dont la règle « sans bandeau » vise un solde **constaté**. L'écran affiche en haut un bandeau « Solde de caisse projeté négatif dès {mois année} : {montant} » **en texte et en icône**, jamais la couleur seule, avec le vrai signe moins. Le module 4.9 **n'envoie aucune notification** : le Module 4.12 lira simplement `cashflow_previsionnel()` (lignes `solde_negatif`, premier mois concerné) ; aucun objet SQL de plus.
 
 ## Simulateur (décision D6)
 
@@ -68,12 +70,12 @@ Toute erreur de simulation est une **exception explicite** (donnée invalide, id
 
 ### 0. Prérequis (brief séparé, validé puis mergé avant le 4.9)
 
-Migration « Lien revenu prévu ↔ créance » :
+`docs/briefs/Lien-Creance-Revenu-Prevu.md`, en résumé :
 
-- `lignes_revenu_prevu.creance_id uuid null references creances(id) on delete restrict`, **un seul lien par créance** (index unique partiel sur `creance_id` non nul) ;
-- trigger `BEFORE INSERT/UPDATE` : la créance appartient à la même entreprise que la ligne (comme les gardes-fous du 4.3), la ligne n'est pas `annule` si elle est liée à une créance non soldée (optionnel, à trancher dans ce brief) ;
-- aucune nouvelle policy (le CEO écrit déjà ces lignes) ; test adversarial : lier la ligne de l'entreprise A à une créance de B est rejeté par le trigger, pas seulement invisible ;
-- écran du Budget (4.3) : liste déroulante des créances non soldées sur chaque ligne de CA ; la vue `v_budget_mensuel_totaux` n'est pas modifiée (le 4.9 retranche les lignes liées lui-même).
+- `creances.ligne_revenu_prevu_id uuid null references lignes_revenu_prevu(id) on delete set null` : le lien est **porté par la créance** et choisi par le **comptable** dans le formulaire de créance ; une créance vise au plus une ligne, une ligne peut recevoir **plusieurs** créances ;
+- trigger `BEFORE INSERT OR UPDATE` : la ligne appartient à la même entreprise que la créance (même message qu'un id inexistant, testé aussi sans RLS) et n'est pas `annule` au moment du lien ;
+- vue `v_lignes_revenu_facturation` (`security_invoker`) : montant facturé et `reste_a_facturer` par ligne, **seule règle de consommation**, lue par le 4.9 ;
+- aucune nouvelle policy ; `v_budget_mensuel_totaux` n'est pas modifiée.
 
 ### 1. Fonction SQL `cashflow_previsionnel(p_date_reference date default current_date, p_depenses_reportees jsonb default '[]', p_creances_retardees jsonb default '[]')`
 
@@ -160,7 +162,7 @@ Attendus, mois (montants en FCFA ; colonnes simulées = base) :
 | 2026-07 | futur | oui | 300 000 | 0 | 300 000 | 300 000 | 0 | −120 000 | −120 000 | oui |
 | 2026-08 à 2027-02 (7 lignes) | futur | non | `null` | `null` | `null` | `null` | `null` | `null` | `null` | `null` |
 
-Détail à vérifier : mars — budget de ventes 300 000 moins le réel hors créance (170 000 − 50 000 = 120 000) = **180 000** restant ; Gamma attendue le 15 mars (**100 000**) ; dépenses 280 000 − 90 000 = **190 000**. Avril — 250 000 (Alpha, liée, remplacée par son reste dû) + Alpha 200 000 + **Zeta 40 000 (non liée : s'ajoute)** ; lignes annulées absentes ; dépenses 300 000. Mai — Beta (liée) remplacée par son reste dû **400 000** (non 500 000 : l'acompte de février est déjà au réel). Delta **n'apparaît nulle part** (`plus_60`). Epsilon n'apparaît nulle part (soldée).
+Détail à vérifier : mars — budget de ventes 300 000 moins le réel hors créance (170 000 − 50 000 = 120 000) = **180 000** restant ; Gamma attendue le 15 mars (**100 000**) ; dépenses 280 000 − 90 000 = **190 000**. Avril — budget 250 000 (la ligne « Client Alpha » est entièrement consommée : 200 000 − 200 000 = 0) ; créances Alpha 200 000 + **Zeta 40 000 (non liée : s'ajoute)** ; lignes annulées absentes ; dépenses 300 000. Mai — la ligne « Client Beta » (400 000) est consommée par le montant facturé de Beta (500 000), plafonnée à 0 ; Beta compte pour son reste dû **400 000** (non 500 000 : l'acompte de février est déjà au réel). Delta **n'apparaît nulle part** (`plus_60`). Epsilon n'apparaît nulle part (soldée).
 
 Trimestres (5 lignes, T1 2026 à T1 2027) :
 
@@ -222,7 +224,33 @@ Solde 100 000 à la fin du 2026-05-31 ; entrée de 50 000 le 2026-06-05, paiemen
 | 2026-06 | 100 000 | 0 | 150 000 | −50 000 | 150 000 | 100 000 | non |
 | 2026-07 | 100 000 | 0 | 200 000 | −100 000 | 100 000 | **0** | **non** |
 
-Prouve : ligne liée à une créance **soldée** → disparaît sans rien ajouter (le paiement de P1 n'a pas consommé le budget de ventes de juin : 100 000 intacts) ; ligne liée à une créance `plus_60` → disparaît aussi, P2 exclue ; **solde exactement nul = pas d'alerte** (strict).
+Prouve : ligne liée à une créance **soldée** → entièrement consommée (50 000 − 50 000), rien n'est ajouté (le paiement de P1 n'a pas consommé le budget de ventes de juin : 100 000 intacts) ; ligne liée à une créance `plus_60` → consommée aussi, P2 exclue ; **solde exactement nul = pas d'alerte** (strict).
+
+### Scénario 7 — factures partielles, dépassement, lien inerte (`Cash6`, `cashflow_previsionnel('2026-09-10')`)
+
+Solde 500 000 à la fin du 2026-08-31 ; vente comptant de 80 000 le 2026-09-05 (sans créance). Solde de départ **580 000**. Budgets :
+
+| Mois | CA prévisionnel (lignes) | Charges |
+|---|---|---|
+| Septembre | **Ventes 400 000**, liée à K1 (150 000, échéance 2026-09-25) et K2 (100 000, échéance **2026-10-15**) | 300 000 |
+| Octobre | **Contrat Gamma 200 000**, liée à K3 (250 000, échéance 2026-10-31 : dépassement) ; Ventes 300 000 (non liée) ; **Vente annulée 100 000 (`annule`)**, liée à K4 (60 000, échéance 2026-10-20 : lien inerte) | 400 000 |
+| Novembre et suivants | **aucun budget** | |
+
+Aucune créance payée.
+
+| Mois | Enc. budget | Enc. créances | Encaissements | Dépenses | Résultat | Solde début | Solde fin | Négatif |
+|---|---|---|---|---|---|---|---|---|
+| 2026-09 | 70 000 | 150 000 | 220 000 | 300 000 | −80 000 | 580 000 | 500 000 | non |
+| 2026-10 | 300 000 | 410 000 | 710 000 | 400 000 | 310 000 | 500 000 | 810 000 | non |
+| 2026-11 à 2027-08 | non projeté | | | | | | | |
+
+Détail : septembre — reste à facturer de « Ventes » 400 000 − 250 000 = 150 000, moins le réel hors créance 80 000 = **70 000** ; K1 150 000. Octobre — « Contrat Gamma » 200 000 − 250 000 → 0 (plafond par ligne), « Ventes » 300 000, ligne annulée absente : **300 000** ; créances K2 100 000 (sa ligne est en septembre, elle arrive à son échéance) + K3 250 000 + K4 60 000 (lien inerte : compte comme non liée) = **410 000**.
+
+Trimestres (5 lignes) : T3 2026 (1 mois, partiel) 220 000 / 300 000 / −80 000, 580 000 → 500 000 ; T4 2026 (1 mois, partiel) 710 000 / 400 000 / 310 000, 500 000 → 810 000 ; T1, T2, T3 2027 non projetés.
+
+Simulation **S7** — K2 payée avec 20 jours de retard (attendue le 2026-11-04, hors projection) : octobre encaissements 610 000, résultat 210 000, solde fin **710 000** (écart −100 000) ; septembre inchangé.
+
+Prouve : une facture **partielle** laisse le reste de sa ligne attendu (l'ancienne règle « la ligne liée est remplacée » donnerait septembre 0 / 150 000 → solde fin 430 000, puis 740 000 en octobre) ; le plafond s'applique **par ligne** (un plafond par mois donnerait 500 000 − 250 000 = 250 000 en octobre au lieu de 300 000) ; une créance liée à une ligne d'un autre mois arrive à **sa** date ; un lien vers une ligne annulée est inerte.
 
 ## Tests adversariaux (obligatoires, en utilisateur authentifié réel, jamais en `service_role`)
 
@@ -238,7 +266,7 @@ Prouve : ligne liée à une créance **soldée** → disparaît sans rien ajoute
    - `max(… , 0)` du mois en cours (dépenses et encaissements) ;
    - arrêt de la projection au premier mois sans budget ;
    - exclusion des lignes `annule` (règle de la vue) ;
-   - remplacement de la ligne liée par le reste dû de la créance (retrait → double comptage d'Alpha et de Beta) ;
+   - consommation des lignes par `v_lignes_revenu_facturation` (retrait → double comptage d'Alpha et de Beta ; remplacement total de la ligne → scénario 7 septembre à 0 au lieu de 70 000 ; plafond par mois → octobre à 250 000 au lieu de 300 000) ;
    - exclusion des créances `plus_60` et des créances soldées ;
    - retrait des paiements de créances du réel du mois en cours (sinon le budget de ventes de mars passe de 180 000 à 130 000) ;
    - ignorance des transactions postérieures à la date de référence (scénario 5) ;
@@ -252,7 +280,8 @@ Prouve : ligne liée à une créance **soldée** → disparaît sans rien ajoute
 - Créance dont le reste dû change entre deux appels (paiement concurrent) : la fonction lit un instantané ; aucune écriture, aucun verrou.
 - Une créance attendue le jour de référence compte dans le mois en cours ; une créance échue le dernier jour du mois en cours aussi.
 - Plusieurs reports sur la même ligne : leur somme ne peut pas dépasser le montant de la ligne (exception).
-- Une ligne de CA liée et `annule` : ignorée (la vue l'exclut), la créance reste attendue et **non liée**.
+- Une ligne de CA liée et `annule` : ignorée (la vue l'exclut), la créance reste attendue et compte comme **non liée** (scénario 7, K4).
+- Une ligne de CA facturée au-delà de son montant : reste à facturer 0, jamais négatif, sans effet sur les autres lignes du mois (scénario 7, K3).
 - Entreprise dont la date du solde est **postérieure** à la date de référence : `solde_caisse_a` remonte le temps (règle du prérequis daté) ; le tableau est identique dans son principe.
 
 ## Hors de ce module
@@ -266,7 +295,7 @@ Prouve : ligne liée à une créance **soldée** → disparaît sans rien ajoute
 
 ## Livrable attendu pour revue
 
-PR depuis `feat/module-4.9-cashflow` vers `main` (le prérequis « Lien revenu prévu ↔ créance » mergé avant) avec :
+PR depuis `feat/module-4.9-cashflow` vers `main` (le prérequis « Lien créance ↔ revenu prévu » mergé avant) avec :
 - le SQL complet de la migration en clair (fonction, GRANT, éventuel index) et les ACL réelles ;
 - le résultat réel de chaque scénario comparé aux attendus ci-dessus ;
 - la preuve des tests adversariaux et des contrôles négatifs (chaque essai noté, y compris ceux qui ne produisent pas d'échec direct) ;
@@ -276,36 +305,36 @@ PR depuis `feat/module-4.9-cashflow` vers `main` (le prérequis « Lien revenu p
 
 ---
 
-## Décisions produit pour Ouezz
+## Décisions produit (décidées, Ouezz, 2026-11-12)
 
-*(à trancher avant implémentation ; ma recommandation en premier.)*
+*Toutes retenues selon ma recommandation ; les alternatives restent notées pour mémoire.*
 
-**D1 — Point de départ de la projection.** *Recommandation : le solde réel à la fin de la journée d'aujourd'hui (`solde_caisse_a(date de référence)`), et le mois en cours projeté sur son « reste à réaliser ».* Raison : c'est le solde que le CEO a réellement en caisse ; partir de la fin du dernier mois clos ignorerait les flux déjà constatés ce mois-ci (ou obligerait à projeter tout le mois en doublon avec le réel). Alternative : fin du dernier mois clos, plus simple mais fausse dès le 2 du mois.
+**D1 — Point de départ de la projection.** *Décidé : le solde réel à la fin de la journée d'aujourd'hui (`solde_caisse_a(date de référence)`), et le mois en cours projeté sur son « reste à réaliser ».* Raison : c'est le solde que le CEO a réellement en caisse ; partir de la fin du dernier mois clos ignorerait les flux déjà constatés ce mois-ci (ou obligerait à projeter tout le mois en doublon avec le réel). Alternative : fin du dernier mois clos, plus simple mais fausse dès le 2 du mois.
 
-**D2 — Horizon.** *Recommandation : 12 mois glissants (mois en cours + 11), avec regroupement en trimestres civils.* Le CDC dit « prochains mois/trimestres » sans borne ; la projection s'arrête de toute façon au premier mois sans budget (D3), donc un horizon large ne coûte rien. Alternative : 6 mois, ou un sélecteur 3/6/12.
+**D2 — Horizon.** *Décidé : 12 mois glissants (mois en cours + 11), avec regroupement en trimestres civils.* Le CDC dit « prochains mois/trimestres » sans borne ; la projection s'arrête de toute façon au premier mois sans budget (D3), donc un horizon large ne coûte rien. Alternative : 6 mois, ou un sélecteur 3/6/12.
 
-**D3 — Mois futur sans budget.** *Recommandation : la projection s'arrête au premier mois sans budget (valeurs « — », jamais 0), et si le mois en cours n'a pas de budget, rien n'est projeté.* Raison : un mois sans budget compté à 0 de dépenses donnerait un solde faussement optimiste ; même principe que le 4.6 (« prévu `null` ») et le 4.8 (« le module n'invente aucun chiffre »). Alternatives écartées : reconduire le dernier budget, ou compter 0.
+**D3 — Mois futur sans budget.** *Décidé : la projection s'arrête au premier mois sans budget (valeurs « — », jamais 0), et si le mois en cours n'a pas de budget, rien n'est projeté.* Raison : un mois sans budget compté à 0 de dépenses donnerait un solde faussement optimiste ; même principe que le 4.6 (« prévu `null` ») et le 4.8 (« le module n'invente aucun chiffre »). Alternatives écartées : reconduire le dernier budget, ou compter 0.
 
-**D4 — Créances et CA prévisionnel du budget (double comptage).** *Recommandation : lien explicite « ligne de CA prévisionnel ↔ créance » (prérequis, une colonne et un trigger) : la ligne liée est remplacée par le reste dû réel de la créance ; une créance non liée s'ajoute au budget.* Raison : c'est la seule règle exacte, et elle garde le simulateur honnête. Alternatives écartées : (A) « le plus grand de CA budget et créances » — sans migration et prudent, mais **un retard de paiement peut alors augmenter les encaissements** (le maximum d'un mois baisse quand la créance part, et celui du mois d'arrivée monte : la somme des encaissements n'est plus conservée) : le simulateur serait faux ; (C) « budget + créances toujours additionnés » — sans migration et conservatif pour le simulateur, mais double comptage garanti dès que le CEO budgète une facture (CEO à qui on demanderait de ne budgéter que les ventes comptant). Si Ouezz préfère C pour livrer vite, le scénario 1 change (avril : 250 000 + 200 000 budget liées → plus de remplacement) ; je réécris alors les attendus.
+**D4 — Créances et CA prévisionnel du budget (double comptage).** *Décidé : lien explicite « créance ↔ ligne de CA prévisionnel » (prérequis `docs/briefs/Lien-Creance-Revenu-Prevu.md`) : la ligne liée est consommée par le montant facturé de ses créances, qui comptent pour leur reste dû ; une créance non liée s'ajoute au budget.* Précision apportée par le prérequis (sa décision P2, à valider avec lui) : « consommée » plutôt que « remplacée », pour qu'une facture partielle laisse le reste de la ligne attendu ; les scénarios 1 à 6 sont identiques sous les deux formulations, le scénario 7 les distingue. Raison : c'est la seule règle exacte, et elle garde le simulateur honnête. Alternatives écartées : (A) « le plus grand de CA budget et créances » — sans migration et prudent, mais **un retard de paiement peut alors augmenter les encaissements** (le maximum d'un mois baisse quand la créance part, et celui du mois d'arrivée monte : la somme des encaissements n'est plus conservée) : le simulateur serait faux ; (C) « budget + créances toujours additionnés » — sans migration et conservatif pour le simulateur, mais double comptage garanti dès que le CEO budgète une facture (CEO à qui on demanderait de ne budgéter que les ventes comptant). 
 
-**D5 — Créances en retard.** *Recommandation : attendues aujourd'hui (mois en cours) tant que le retard est ≤ 60 jours ; au-delà (tranche `plus_60`) exclues de la projection et affichées à part.* Raison : prudence de trésorerie, tranche déjà définie au 4.5. Alternatives : toutes comptées (optimiste), ou un délai de grâce paramétrable (V2).
+**D5 — Créances en retard.** *Décidé : attendues aujourd'hui (mois en cours) tant que le retard est ≤ 60 jours ; au-delà (tranche `plus_60`) exclues de la projection et affichées à part.* Raison : prudence de trésorerie, tranche déjà définie au 4.5. Alternatives : toutes comptées (optimiste), ou un délai de grâce paramétrable (V2).
 
-**D6 — Simulateur.** *Recommandation : non stocké en V1, deux opérations seulement (reporter une dépense du budget, retarder un paiement client), calcul par une fonction `stable` qui ne peut pas écrire.* Raison : « une simulation ne modifie jamais le réel » est garanti par construction, sans table ni policy supplémentaires ; le CEO peut garder une simulation en copiant l'URL. Alternative : scénarios enregistrés (table `simulations` avec sa propre RLS, lecture seule vers le reste) : module à part si le besoin se confirme.
+**D6 — Simulateur.** *Décidé : non stocké en V1, deux opérations seulement (reporter une dépense du budget, retarder un paiement client), calcul par une fonction `stable` qui ne peut pas écrire.* Raison : « une simulation ne modifie jamais le réel » est garanti par construction, sans table ni policy supplémentaires ; le CEO peut garder une simulation en copiant l'URL. Alternative : scénarios enregistrés (table `simulations` avec sa propre RLS, lecture seule vers le reste) : module à part si le besoin se confirme.
 
-**D7 — Alerte de solde projeté négatif.** *Recommandation : alerte stricte `< 0`, bandeau dans l'écran du 4.9, aucune notification ici ; le 4.12 lira la fonction.* Pas de seuil de trésorerie minimale en V1. Note : le 4.8 a décidé « solde négatif sans bandeau » pour un solde **constaté** ; pour un solde **projeté**, l'alerte est le but du module — à confirmer comme exception.
+**D7 — Alerte de solde projeté négatif.** *Décidé : alerte stricte `< 0`, bandeau dans l'écran du 4.9, aucune notification ici ; le 4.12 lira la fonction.* Pas de seuil de trésorerie minimale en V1. Le bandeau applique le CDC §4.6 (« alertes visuelles en cas de solde de caisse prévisionnel négatif ») : il ne contredit donc pas le 4.8, dont la règle « solde négatif sans bandeau » porte sur un solde **constaté**.
 
-**D8 — Transactions datées dans le futur.** *Recommandation : la projection les ignore (ni dans le solde de départ, ni dans le réel à date), et on interdit les dates futures au Journal (4.4) dans un petit module ultérieur.* Rien ne les interdit aujourd'hui (aucune règle dans les migrations du 4.4). Alternative : les compter comme flux connus du mois (plus juste, plus complexe, jamais testé).
+**D8 — Transactions datées dans le futur.** *Décidé : la projection les ignore (ni dans le solde de départ, ni dans le réel à date), et on interdit les dates futures au Journal (4.4) dans un petit module ultérieur.* Rien ne les interdit aujourd'hui (aucune règle dans les migrations du 4.4) : l'interdiction est inscrite comme dette dans la roadmap (petit module ultérieur). Alternative : les compter comme flux connus du mois (plus juste, plus complexe, jamais testé).
 
-**D9 — Dépenses déjà réalisées ou annulées.** *Recommandation : une ligne `realise` ou `annule` ne peut pas être reportée dans le simulateur.* Raison : l'argent est déjà sorti (la dépense est dans le réel), ou la ligne n'existe plus dans le prévu.
+**D9 — Dépenses déjà réalisées ou annulées.** *Décidé : une ligne `realise` ou `annule` ne peut pas être reportée dans le simulateur.* Raison : l'argent est déjà sorti (la dépense est dans le réel), ou la ligne n'existe plus dans le prévu.
 
-## Choix techniques proposés
+## Choix techniques (décidés, Ouezz, 2026-11-12)
 
 - **T1 — Une seule fonction `cashflow_previsionnel`** (base + simulation + mois + trimestres) plutôt que plusieurs : une ACL, un jeu de lignes, continuité et conservation prouvées dans la même sortie.
-- **T2 — Réutilisation, pas de recalcul** : `solde_caisse_a`, `v_budget_mensuel_totaux`, `creances_situation`, `creances_balance_agee`. Seule nouvelle lecture du réel : les entrées/sorties du mois en cours `<= date de référence` et la part payée sur créances (`transactions.creance_id`) ; recoupées par test avec `ecarts_mensuels` et `solde_caisse_a` quand aucune transaction n'est postérieure à la date de référence.
+- **T2 — Réutilisation, pas de recalcul** : `solde_caisse_a`, `v_budget_mensuel_totaux` (charges), `v_lignes_revenu_facturation` (CA restant à facturer, prérequis), `creances_situation`, `creances_balance_agee`. Seule nouvelle lecture du réel : les entrées/sorties du mois en cours `<= date de référence` et la part payée sur créances (`transactions.creance_id`) ; recoupées par test avec `ecarts_mensuels` et `solde_caisse_a` quand aucune transaction n'est postérieure à la date de référence.
 - **T3 — plpgsql pour la validation de la simulation**, après la restriction au CEO (un non-CEO n'atteint jamais un `raise exception`) ; le reste en SQL. Fonction `stable` : PostgreSQL interdit toute écriture dans une fonction stable, preuve supplémentaire de l'étanchéité du simulateur.
 - **T4 — Simulation passée en jsonb** (`[{"ligne_charge_id": …, "montant": …, "vers_annee": …, "vers_mois": …}]` et `[{"creance_id": …, "jours": …}]`) : aucune table, aucun état serveur ; l'écran encode les mêmes paramètres dans l'URL.
 - **T5 — Soldes par somme cumulative des résultats mensuels** (comme au 4.8), un seul appel à `solde_caisse_a`.
-- **T6 — Graphique du solde projeté** en réutilisant le composant SVG du 4.7 (deux courbes en simulation) : le brief du 4.8 avait écarté tout graphique, mais la projection d'un solde se lit d'abord en courbe ; à écarter si Ouezz préfère un module plus léger.
+- **T6 — Graphique du solde projeté** en réutilisant le composant SVG du 4.7 (deux courbes en simulation) : le brief du 4.8 avait écarté tout graphique, mais la projection d'un solde se lit d'abord en courbe. Retenu.
 - **T7 — Aucune nouvelle table, aucune nouvelle policy** ; l'étanchéité du simulateur est prouvée par empreintes avant/après et par une exécution en transaction `READ ONLY`.
-- **T8 — Prérequis en brief séparé** (comme `Solde-Initial-Date`) : un schéma modifié (colonne + trigger) mergé et validé avant la fonction, pour qu'aucune migration ne cumule deux sujets.
+- **T8 — Prérequis en brief séparé** (`Lien-Creance-Revenu-Prevu`, comme `Solde-Initial-Date`) : un schéma modifié (colonne, trigger, vue) mergé et validé avant la fonction, pour qu'aucune migration ne cumule deux sujets.
 - **T9 — Tests** : même style que le 4.7 et le 4.8 (jsonb attendus écrits en dur, `BEGIN … ROLLBACK`, utilisateurs authentifiés réels, contrôles négatifs consignés dans la PR, assertion sur le corps de la fonction pour la restriction au CEO), étape CI dédiée, `/cashflow` dans `acces_pages.mjs`.
