@@ -9,7 +9,15 @@ type LigneRevenu = {
   source: string;
   montant_estime: number;
   statut: string;
+  // Lus dans v_lignes_revenu_facturation (prérequis du 4.9, décision P8),
+  // jamais recalculés ici. Absents pour une ligne annulée (exclue de la vue).
+  nb_creances?: number;
+  montant_facture?: number;
+  reste_a_facturer?: number;
 };
+
+const formatMontant = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
+const montant = (v: number) => `${formatMontant.format(v)} FCFA`;
 
 export function GestionLignesRevenu({
   lignes,
@@ -67,7 +75,13 @@ export function GestionLignesRevenu({
       <ul>
         {lignes.map((l) => (
           <li key={l.id}>
-            {l.source} — {l.montant_estime} FCFA ({l.statut}){" "}
+            {l.source} — {l.montant_estime} FCFA ({l.statut})
+            {l.statut !== "annule" && (
+              <>
+                {" "}— Facturé : {montant(l.montant_facture ?? 0)} ({l.nb_creances ?? 0} créance
+                {(l.nb_creances ?? 0) === 1 ? "" : "s"}) — Reste à facturer : {montant(l.reste_a_facturer ?? l.montant_estime)}
+              </>
+            )}{" "}
             <button onClick={() => supprimer(l.id)}>Supprimer</button>
           </li>
         ))}
