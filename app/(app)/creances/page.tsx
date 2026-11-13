@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { exigerRole } from "@/lib/acces";
 import { createClient } from "@/lib/supabase/server";
-import { GestionCreances, type LigneCreance } from "@/components/gestion-creances";
+import { GestionCreances, type LigneCreance, type LigneDisponible, type LigneLabel } from "@/components/gestion-creances";
 
 type LigneBalance = { rubrique: "total" | "tranche" | "mois"; cle: string; montant: number };
 
@@ -84,17 +84,56 @@ export default async function CreancesPage({
     requeteSituation = requeteSituation.eq("statut", statutFiltre);
   }
 
-  const [{ data: situation, error: erreurSituation }, { data: balance }, { data: categories }] =
-    await Promise.all([
-      requeteSituation,
-      supabase.rpc("creances_balance_agee"),
-      estComptable
-        ? supabase.from("categories").select("id, libelle, type")
-        : Promise.resolve({ data: [] }),
-    ]);
+  // creances_situation() ne porte pas ligne_revenu_prevu_id (4.5 non
+  // redéfinie, cf. brief du prérequis) : le lien est lu séparément sur
+  // creances, puis fusionné par id.
+  const [
+    { data: situation, error: erreurSituation },
+    { data: balance },
+    { data: categories },
+    { data: liens },
+    { data: lignesTout },
+    { data: disponibles },
+  ] = await Promise.all([
+    requeteSituation,
+    supabase.rpc("creances_balance_agee"),
+    estComptable
+      ? supabase.from("categories").select("id, libelle, type")
+      : Promise.resolve({ data: [] }),
+    supabase.from("creances").select("id, ligne_revenu_prevu_id"),
+    supabase.from("lignes_revenu_prevu").select("id, source, statut, budgets_mensuels(mois, annee)"),
+    estComptable
+      ? supabase
+          .from("v_lignes_revenu_facturation")
+          .select("ligne_revenu_prevu_id, annee, mois, source, reste_a_facturer")
+      : Promise.resolve({ data: [] }),
+  ]);
 
-  const lignes = (situation ?? []) as LigneCreance[];
+  const liensParId = new Map((liens ?? []).map((l) => [l.id as string, l.ligne_revenu_prevu_id as string | null]));
+  const lignes = ((situation ?? []) as Omit<LigneCreance, "ligne_revenu_prevu_id">[]).map((l) => ({
+    ...l,
+    ligne_revenu_prevu_id: liensParId.get(l.id) ?? null,
+  })) as LigneCreance[];
   const lignesBalance = (balance ?? []) as LigneBalance[];
+
+  const lignesLabels: Record<string, LigneLabel> = {};
+  for (const l of (lignesTout ?? []) as unknown as {
+    id: string;
+    source: string;
+    statut: string;
+    budgets_mensuels: { mois: number; annee: number } | null;
+  }[]) {
+    if (l.budgets_mensuels) {
+      lignesLabels[l.id] = {
+        source: l.source,
+        statut: l.statut,
+        mois: l.budgets_mensuels.mois,
+        annee: l.budgets_mensuels.annee,
+      };
+    }
+  }
+
+  const lignesDisponibles = (disponibles ?? []) as LigneDisponible[];
   const totalEnCours = lignesBalance.find((l) => l.rubrique === "total")?.montant ?? 0;
   const tranches = lignesBalance.filter((l) => l.rubrique === "tranche");
   const parMois = lignesBalance.filter((l) => l.rubrique === "mois");
@@ -164,6 +203,8 @@ export default async function CreancesPage({
         estComptable={estComptable}
         entrepriseId={profil.entreprise_id}
         categories={(categories ?? []) as { id: string; libelle: string; type: "fixe" | "variable" | "revenu" }[]}
+        lignesDisponibles={lignesDisponibles}
+        lignesLabels={lignesLabels}
       />
     </main>
   );

@@ -56,7 +56,15 @@ export default async function BudgetsPage({
     categorie_id: string;
     statut: string;
   }[] = [];
-  let lignesRevenu: { id: string; source: string; montant_estime: number; statut: string }[] = [];
+  let lignesRevenu: {
+    id: string;
+    source: string;
+    montant_estime: number;
+    statut: string;
+    nb_creances?: number;
+    montant_facture?: number;
+    reste_a_facturer?: number;
+  }[] = [];
   let totaux: {
     total_charges_fixes: number;
     total_charges_variables: number;
@@ -65,7 +73,7 @@ export default async function BudgetsPage({
   } | null = null;
 
   if (budget) {
-    const [{ data: cats }, { data: charges }, { data: revenus }, { data: tot }] =
+    const [{ data: cats }, { data: charges }, { data: revenus }, { data: tot }, { data: facturation }] =
       await Promise.all([
         supabase.from("categories").select("id, libelle, type"),
         supabase
@@ -81,11 +89,26 @@ export default async function BudgetsPage({
           .select("total_charges_fixes, total_charges_variables, total_ca_previsionnel, resultat_previsionnel")
           .eq("budget_mensuel_id", budget.id)
           .maybeSingle(),
+        // Facturé / reste à facturer (prérequis du 4.9, décision P8) : lus
+        // dans la vue, jamais recalculés ici. Absente pour une ligne
+        // annulée (exclue de la vue) : traitée comme "— / —" à l'écran.
+        estCeo
+          ? supabase
+              .from("v_lignes_revenu_facturation")
+              .select("ligne_revenu_prevu_id, nb_creances, montant_facture, reste_a_facturer")
+              .eq("budget_mensuel_id", budget.id)
+          : Promise.resolve({ data: [] }),
       ]);
 
     categories = cats ?? [];
     lignesCharge = charges ?? [];
-    lignesRevenu = revenus ?? [];
+    const facturationParId = new Map(
+      (facturation ?? []).map((f) => [
+        f.ligne_revenu_prevu_id as string,
+        { nb_creances: f.nb_creances as number, montant_facture: f.montant_facture as number, reste_a_facturer: f.reste_a_facturer as number },
+      ]),
+    );
+    lignesRevenu = (revenus ?? []).map((l) => ({ ...l, ...facturationParId.get(l.id) }));
     totaux = tot ?? null;
   }
 
