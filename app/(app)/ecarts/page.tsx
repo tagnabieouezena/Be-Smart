@@ -147,9 +147,10 @@ export default async function EcartsPage({
 
   return (
     <main className="page">
-      <h1>Suivi des écarts — Prévu vs Réel</h1>
-
+      {/* Bandeau d'accueil en haut de /ecarts (décision du 4.7, vérifiée par acces_pages.mjs). */}
       {ligneBandeau && <BandeauVariations ligne={ligneBandeau} />}
+
+      <h1>Suivi des écarts — Prévu vs Réel</h1>
 
       <form method="get" className="barre-filtres">
         <label>
