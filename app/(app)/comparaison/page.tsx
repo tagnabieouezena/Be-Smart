@@ -22,7 +22,8 @@ type LigneComparaison = {
   resultat_cumul: number;
 };
 
-const cellule = { padding: "0.4rem 0.6rem", borderBottom: "1px solid var(--graph-grille)", whiteSpace: "nowrap" as const };
+// Hauteur (36 px), filets et chiffres tabulaires : styles globaux des tableaux (app/globals.css).
+const cellule = {};
 const celluleDroite = { ...cellule, textAlign: "right" as const };
 
 export default async function ComparaisonPage({
@@ -46,11 +47,11 @@ export default async function ComparaisonPage({
   const derniere = lignes[lignes.length - 1];
 
   return (
-    <main style={{ padding: "2rem", fontFamily: "system-ui, sans-serif" }}>
+    <main className="page">
       <h1>Comparaison mensuelle</h1>
       <p>Base trésorerie : une facture compte au mois de son paiement.</p>
 
-      <form method="get" style={{ display: "flex", gap: "0.5rem", alignItems: "center", margin: "1rem 0" }}>
+      <form method="get" className="barre-filtres">
         <label>
           Année{" "}
           <select name="annee" defaultValue={annee}>
@@ -64,7 +65,7 @@ export default async function ComparaisonPage({
         <button type="submit">Afficher</button>
       </form>
 
-      {error && <p style={{ color: "var(--color-negatif)" }}>Impossible de charger la comparaison : {error.message}</p>}
+      {error && <p className="message-erreur">Impossible de charger la comparaison : {error.message}</p>}
       {lignes.length === 0 && !error && <p>Aucune donnée pour {annee}.</p>}
 
       {lignes.length > 0 && (
@@ -79,7 +80,7 @@ export default async function ComparaisonPage({
           </h2>
           <p>Chaque variation se lit par rapport au mois précédent.</p>
           <div className="tableau-defilant" style={{ marginTop: "0.5rem" }}>
-            <table aria-labelledby="titre-tableau" style={{ borderCollapse: "collapse", minWidth: "980px" }}>
+            <table aria-labelledby="titre-tableau" style={{ minWidth: "980px" }}>
               <thead>
                 <tr>
                   <th scope="col" style={cellule}>Mois</th>

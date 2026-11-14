@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { exigerRole } from "@/lib/acces";
 import { createClient } from "@/lib/supabase/server";
 import { BandeauVariations, type LigneBandeau } from "@/components/bandeau-variations";
+import { formaterMontant } from "@/lib/format";
 
 type LigneEcart = {
   mois: number;
@@ -44,11 +45,13 @@ const NOMS_MOIS = [
   "Décembre",
 ];
 
+// Valeurs absolues des écarts (le signe est écrit à part, en vrai moins).
 const formatMontant = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
 const formatPct = new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+// Vrai signe moins (U+2212) et espace insécable : lib/format.ts, règle unique.
 function montant(valeur: number | null) {
-  return valeur === null ? "—" : `${formatMontant.format(valeur)} FCFA`;
+  return valeur === null ? "—" : formaterMontant(valeur);
 }
 
 // Le sens de l'écart ne repose jamais sur la couleur seule : signe + icône.
@@ -72,7 +75,7 @@ function Ecart({
   const libelle = favorable ? "favorable" : "défavorable";
 
   return (
-    <span style={{ color: favorable ? "seagreen" : "crimson", fontWeight: alerte ? 700 : 400 }}>
+    <span className={favorable ? "variation-favorable" : "variation-defavorable"} style={{ fontWeight: alerte ? 700 : 400 }}>
       <span aria-label={libelle} title={libelle}>
         {icone}
       </span>{" "}
@@ -96,8 +99,6 @@ function Ecart({
     </span>
   );
 }
-
-const cellule = { padding: "0.4rem 0.6rem", borderBottom: "1px solid #ddd", whiteSpace: "nowrap" as const };
 
 export default async function EcartsPage({
   searchParams,
@@ -145,12 +146,13 @@ export default async function EcartsPage({
   const moisSoldeNegatif = lignes.filter((l) => l.alerte_solde_negatif);
 
   return (
-    <main style={{ padding: "2rem", fontFamily: "system-ui, sans-serif" }}>
+    <main className="page">
+      {/* Bandeau d'accueil en haut de /ecarts (décision du 4.7, vérifiée par acces_pages.mjs). */}
       {ligneBandeau && <BandeauVariations ligne={ligneBandeau} />}
 
       <h1>Suivi des écarts — Prévu vs Réel</h1>
 
-      <form method="get" style={{ display: "flex", gap: "0.5rem", alignItems: "center", margin: "1rem 0" }}>
+      <form method="get" className="barre-filtres">
         <label>
           Année{" "}
           <input type="number" name="annee" defaultValue={annee} min={2000} max={2100} />
@@ -158,13 +160,10 @@ export default async function EcartsPage({
         <button type="submit">Afficher</button>
       </form>
 
-      {error && <p style={{ color: "crimson" }}>Impossible de charger les écarts : {error.message}</p>}
+      {error && <p className="message-erreur">Impossible de charger les écarts : {error.message}</p>}
 
       {moisSoldeNegatif.length > 0 && (
-        <div
-          role="alert"
-          style={{ border: "2px solid crimson", padding: "0.75rem 1rem", margin: "1rem 0", background: "#fff5f5", color: "#7a0019" }}
-        >
+        <div role="alert" className="bandeau-alerte">
           <strong>⚠ Solde de caisse prévisionnel négatif</strong> à la fin de :{" "}
           {moisSoldeNegatif
             .map((l) => `${NOMS_MOIS[l.mois - 1]} (${montant(l.solde_fin_prevu)})`)
@@ -176,21 +175,21 @@ export default async function EcartsPage({
       {lignes.length === 0 && !error && <p>Aucun budget ni transaction pour {annee}.</p>}
 
       {lignes.length > 0 && (
-        <div style={{ overflowX: "auto", maxWidth: "100%" }}>
-          <table style={{ borderCollapse: "collapse", minWidth: "1400px" }}>
+        <div className="tableau-defilant">
+          <table style={{ minWidth: "1400px" }}>
             <thead>
               <tr>
-                <th rowSpan={2} style={cellule}>Mois</th>
-                <th colSpan={3} style={cellule}>Revenus</th>
-                <th colSpan={3} style={cellule}>Dépenses</th>
-                <th colSpan={3} style={cellule}>Résultat</th>
-                <th rowSpan={2} style={cellule}>Solde de début</th>
-                <th colSpan={3} style={cellule}>Solde de fin</th>
+                <th rowSpan={2} scope="col">Mois</th>
+                <th colSpan={3} scope="colgroup">Revenus</th>
+                <th colSpan={3} scope="colgroup">Dépenses</th>
+                <th colSpan={3} scope="colgroup">Résultat</th>
+                <th rowSpan={2} scope="col" className="num">Solde de début</th>
+                <th colSpan={3} scope="colgroup">Solde de fin</th>
               </tr>
               <tr>
                 {["Prévu", "Réel", "Écart", "Prévu", "Réel", "Écart", "Prévu", "Réel", "Écart", "Prévu", "Réel", "Écart"].map(
                   (titre, i) => (
-                    <th key={i} style={cellule}>
+                    <th key={i} scope="col" className="num">
                       {titre}
                     </th>
                   ),
@@ -200,24 +199,22 @@ export default async function EcartsPage({
             <tbody>
               {lignes.map((l) => (
                 <tr key={l.mois}>
-                  <td style={cellule}>
+                  <th scope="row">
                     <strong>{NOMS_MOIS[l.mois - 1]}</strong>
                     {l.statut_mois === "en_cours" && <em> — à date</em>}
                     {!l.a_budget && <em> — Pas de budget</em>}
                     {l.depense_non_prevue && (
-                      <span style={{ marginLeft: "0.5rem", border: "1px solid darkorange", padding: "0 0.3rem", color: "#8a4b00" }}>
-                        ⚠ dépense non prévue
-                      </span>
+                      <span className="badge-alerte">⚠ dépense non prévue</span>
                     )}
-                  </td>
-                  <td style={cellule}>{montant(l.revenus_prevu)}</td>
-                  <td style={cellule}>{montant(l.revenus_reel)}</td>
-                  <td style={cellule}>
+                  </th>
+                  <td className="num">{montant(l.revenus_prevu)}</td>
+                  <td className="num">{montant(l.revenus_reel)}</td>
+                  <td className="num">
                     <Ecart valeur={l.revenus_ecart} pct={l.revenus_ecart_pct} favorableSiPositif alerte={l.alerte_revenus} />
                   </td>
-                  <td style={cellule}>{montant(l.depenses_prevu)}</td>
-                  <td style={cellule}>{montant(l.depenses_reel)}</td>
-                  <td style={cellule}>
+                  <td className="num">{montant(l.depenses_prevu)}</td>
+                  <td className="num">{montant(l.depenses_reel)}</td>
+                  <td className="num">
                     <Ecart
                       valeur={l.depenses_ecart}
                       pct={l.depenses_ecart_pct}
@@ -225,15 +222,15 @@ export default async function EcartsPage({
                       alerte={l.alerte_depenses}
                     />
                   </td>
-                  <td style={cellule}>{montant(l.resultat_prevu)}</td>
-                  <td style={cellule}>{montant(l.resultat_reel)}</td>
-                  <td style={cellule}>
+                  <td className="num">{montant(l.resultat_prevu)}</td>
+                  <td className="num">{montant(l.resultat_reel)}</td>
+                  <td className="num">
                     <Ecart valeur={l.resultat_ecart} pct={l.resultat_ecart_pct} favorableSiPositif />
                   </td>
-                  <td style={cellule}>{montant(l.solde_debut)}</td>
-                  <td style={cellule}>{montant(l.solde_fin_prevu)}</td>
-                  <td style={cellule}>{montant(l.solde_fin_reel)}</td>
-                  <td style={cellule}>
+                  <td className="num">{montant(l.solde_debut)}</td>
+                  <td className="num">{montant(l.solde_fin_prevu)}</td>
+                  <td className="num">{montant(l.solde_fin_reel)}</td>
+                  <td className="num">
                     <Ecart valeur={l.solde_fin_ecart} favorableSiPositif />
                   </td>
                 </tr>
@@ -243,7 +240,7 @@ export default async function EcartsPage({
         </div>
       )}
 
-      <p style={{ marginTop: "1rem", fontSize: "0.9rem" }}>
+      <p className="texte-secondaire petit" style={{ marginTop: "var(--espace-4)" }}>
         Écart = réel − prévu. Alerte d&apos;écart : défavorable, supérieur ou égal à 10 %, mois clos uniquement. Le
         solde prévu de début de mois repart du solde réel constaté.
       </p>

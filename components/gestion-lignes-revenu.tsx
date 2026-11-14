@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { formaterMontant } from "@/lib/format";
 
 type LigneRevenu = {
   id: string;
@@ -16,8 +17,7 @@ type LigneRevenu = {
   reste_a_facturer?: number;
 };
 
-const formatMontant = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
-const montant = (v: number) => `${formatMontant.format(v)} FCFA`;
+const montant = formaterMontant;
 
 export function GestionLignesRevenu({
   lignes,
@@ -75,7 +75,7 @@ export function GestionLignesRevenu({
       <ul>
         {lignes.map((l) => (
           <li key={l.id}>
-            {l.source} — {l.montant_estime} FCFA ({l.statut})
+            {l.source} — {montant(l.montant_estime)} ({l.statut})
             {l.statut !== "annule" && (
               <>
                 {" "}— Facturé : {montant(l.montant_facture ?? 0)} ({l.nb_creances ?? 0} créance
@@ -102,7 +102,7 @@ export function GestionLignesRevenu({
             onChange={(e) => setMontantEstime(e.target.value)}
           />
         </label>
-        {erreur && <p style={{ color: "crimson" }}>{erreur}</p>}
+        {erreur && <p className="message-erreur">{erreur}</p>}
         <button type="submit" disabled={enCours}>
           {enCours ? "Ajout..." : "Ajouter"}
         </button>

@@ -32,7 +32,7 @@ export function BoutonRenvoyerInvitation({ utilisateurId }: { utilisateurId: str
         {etat === "envoi" ? "Envoi..." : "Renvoyer l'invitation"}
       </button>{" "}
       {etat === "envoye" && <span role="status">Invitation renvoyée.</span>}
-      {etat === "erreur" && <span role="alert" style={{ color: "crimson" }}>{message}</span>}
+      {etat === "erreur" && <span role="alert" className="message-erreur">{message}</span>}
     </span>
   );
 }

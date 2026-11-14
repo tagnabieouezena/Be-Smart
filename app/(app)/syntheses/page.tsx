@@ -4,7 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { NOMS_MOIS, formaterMontant, formaterPourcentage } from "@/lib/format";
 import { etatObjectif, grouperParTrimestre, type LigneSynthese } from "@/lib/syntheses";
 
-const cellule = { padding: "0.4rem 0.6rem", borderBottom: "1px solid var(--graph-grille)", whiteSpace: "nowrap" as const };
+// Hauteur (36 px), filets et chiffres tabulaires : styles globaux des tableaux (app/globals.css).
+const cellule = {};
 const celluleDroite = { ...cellule, textAlign: "right" as const };
 const celluleTotal = { ...celluleDroite, fontWeight: 700 };
 
@@ -79,7 +80,7 @@ export default async function SynthesesPage({
   const { groupes, annee: ligneAnnee } = grouperParTrimestre(lignes);
 
   return (
-    <main style={{ padding: "2rem", fontFamily: "system-ui, sans-serif" }}>
+    <main className="page">
       <h1>Synthèses</h1>
       <p>Base trésorerie : une facture compte au mois de son paiement.</p>
       <p>
@@ -87,7 +88,7 @@ export default async function SynthesesPage({
         <Link href="/parametrage">Paramétrage</Link>.
       </p>
 
-      <form method="get" style={{ display: "flex", gap: "0.5rem", alignItems: "center", margin: "1rem 0" }}>
+      <form method="get" className="barre-filtres">
         <label>
           Année{" "}
           <select name="annee" defaultValue={annee}>
@@ -101,7 +102,7 @@ export default async function SynthesesPage({
         <button type="submit">Afficher</button>
       </form>
 
-      {error && <p style={{ color: "var(--color-negatif)" }}>Impossible de charger les synthèses : {error.message}</p>}
+      {error && <p className="message-erreur">Impossible de charger les synthèses : {error.message}</p>}
       {lignes.length === 0 && !error && <p>Aucune donnée pour {annee}.</p>}
 
       {lignes.length > 0 && (
@@ -110,7 +111,7 @@ export default async function SynthesesPage({
             Mois, trimestres et année {annee}
           </h2>
           <div className="tableau-defilant" style={{ marginTop: "0.5rem" }}>
-            <table aria-labelledby="titre-tableau" style={{ borderCollapse: "collapse", minWidth: "1100px" }}>
+            <table aria-labelledby="titre-tableau" style={{ minWidth: "1100px" }}>
               <thead>
                 <tr>
                   <th scope="col" style={cellule}>Période</th>

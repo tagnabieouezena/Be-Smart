@@ -24,7 +24,7 @@ export default async function SupervisionPage() {
     .order("created_at", { ascending: true });
 
   return (
-    <main style={{ padding: "2rem", fontFamily: "system-ui, sans-serif" }}>
+    <main className="page">
       <h1>Supervision Be Smart — entreprises clientes</h1>
       <p>Lecture seule, métadonnées non financières.</p>
       <ul>

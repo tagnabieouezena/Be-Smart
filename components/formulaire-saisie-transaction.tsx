@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { formaterMontant } from "@/lib/format";
 
 type Categorie = { id: string; libelle: string; type: "fixe" | "variable" | "revenu" };
 type LigneRevenuPrevu = { id: string; source: string; montant_estime: number };
@@ -190,7 +191,7 @@ export function FormulaireSaisieTransaction({
             <option value="">Aucun rapprochement</option>
             {lignesRevenuPrevuEnAttente.map((l) => (
               <option key={l.id} value={l.id}>
-                {l.source} ({l.montant_estime} FCFA)
+                {l.source} ({formaterMontant(l.montant_estime)})
               </option>
             ))}
           </select>
@@ -208,8 +209,8 @@ export function FormulaireSaisieTransaction({
           onChange={(e) => setFichier(e.target.files?.[0] ?? null)}
         />
       </label>
-      {avertissement && <p style={{ color: "darkorange" }}>{avertissement}</p>}
-      {erreur && <p style={{ color: "crimson" }}>{erreur}</p>}
+      {avertissement && <p className="texte-alerte">{avertissement}</p>}
+      {erreur && <p className="message-erreur">{erreur}</p>}
       <button type="submit" disabled={enCours}>
         {enCours ? "Enregistrement..." : "Enregistrer"}
       </button>

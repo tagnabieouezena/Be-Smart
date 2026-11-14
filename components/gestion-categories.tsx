@@ -133,7 +133,7 @@ export function GestionCategories({
             ))}
           </select>
         </label>
-        {erreur && <p style={{ color: "crimson" }}>{erreur}</p>}
+        {erreur && <p className="message-erreur">{erreur}</p>}
         <button type="submit" disabled={enCours}>
           {enCours ? "Ajout..." : "Ajouter une catégorie"}
         </button>

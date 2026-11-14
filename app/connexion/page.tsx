@@ -11,7 +11,7 @@ export default async function ConnexionPage({
   const suite = cheminInterneSur(next);
 
   return (
-    <main style={{ padding: "2rem", maxWidth: 480, fontFamily: "system-ui, sans-serif" }}>
+    <main className="page page-etroite">
       <h1>Connexion — Be Smart Pilotage</h1>
       <FormulaireConnexion suite={suite} />
     </main>

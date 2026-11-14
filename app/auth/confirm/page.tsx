@@ -37,7 +37,7 @@ export default async function ConfirmationPage({
   const suite = cheminInterneSur(next);
 
   return (
-    <main style={{ padding: "2rem", maxWidth: 480, fontFamily: "system-ui, sans-serif" }}>
+    <main className="page page-etroite">
       <h1>{texte.titre}</h1>
       <p>{texte.texte}</p>
       <form method="POST" action="/auth/verifier" style={{ marginTop: "1rem" }}>
