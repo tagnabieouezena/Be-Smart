@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { formaterMontant } from "@/lib/format";
 
 type LigneCharge = {
   id: string;
@@ -78,7 +79,7 @@ export function GestionLignesCharge({
       <ul>
         {lignes.map((l) => (
           <li key={l.id}>
-            {l.designation} — {l.montant} FCFA ({l.statut}){" "}
+            {l.designation} — {formaterMontant(l.montant)} ({l.statut}){" "}
             <button onClick={() => supprimer(l.id)}>Supprimer</button>
           </li>
         ))}
@@ -112,7 +113,7 @@ export function GestionLignesCharge({
               onChange={(e) => setMontant(e.target.value)}
             />
           </label>
-          {erreur && <p style={{ color: "crimson" }}>{erreur}</p>}
+          {erreur && <p className="message-erreur">{erreur}</p>}
           <button type="submit" disabled={enCours}>
             {enCours ? "Ajout..." : "Ajouter"}
           </button>

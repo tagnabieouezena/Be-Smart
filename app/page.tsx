@@ -15,7 +15,7 @@ export default async function Accueil({ searchParams }: { searchParams: Promise<
 
   if (!contexte) {
     return (
-      <main style={{ padding: "2rem", maxWidth: 480, fontFamily: "system-ui, sans-serif" }}>
+      <main className="page page-etroite">
         <h1>Be Smart Pilotage</h1>
         <p>Le pilotage financier simple pour votre entreprise.</p>
         <p style={{ display: "flex", gap: "1rem", marginTop: "1rem" }}>
@@ -53,7 +53,7 @@ export default async function Accueil({ searchParams }: { searchParams: Promise<
   }
 
   return (
-    <main style={{ padding: "2rem", maxWidth: 480, fontFamily: "system-ui, sans-serif" }}>
+    <main className="page page-etroite">
       <h1>Compte non rattaché</h1>
       <p role="alert">
         {invite

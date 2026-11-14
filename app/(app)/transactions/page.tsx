@@ -3,6 +3,16 @@ import { exigerRole } from "@/lib/acces";
 import { createClient } from "@/lib/supabase/server";
 import { FiltresTransactions } from "@/components/filtres-transactions";
 import { FormulaireSaisieTransaction } from "@/components/formulaire-saisie-transaction";
+import { formaterMontant } from "@/lib/format";
+
+// Libellés d'affichage seulement (les valeurs stockées ne changent pas).
+const LIBELLES_TYPE: Record<string, string> = { entree: "Entrée", sortie: "Sortie" };
+const LIBELLES_MODE: Record<string, string> = {
+  cash: "Cash",
+  mobile_money: "Mobile Money",
+  virement: "Virement",
+  cheque: "Chèque",
+};
 
 export default async function TransactionsPage({
   searchParams,
@@ -71,22 +81,22 @@ export default async function TransactionsPage({
     ]);
 
   return (
-    <main style={{ padding: "2rem", fontFamily: "system-ui, sans-serif" }}>
+    <main className="page">
       <h1>Journal des transactions</h1>
 
       <FiltresTransactions categories={categories ?? []} utilisateurs={utilisateurs ?? []} />
 
-      <div style={{ overflowX: "auto", maxWidth: "100%" }}>
-      <table>
+      <div className="tableau-defilant">
+      <table style={{ minWidth: "860px" }}>
         <thead>
           <tr>
-            <th>Date</th>
-            <th>Description</th>
-            <th>Catégorie</th>
-            <th>Type</th>
-            <th>Montant</th>
-            <th>Mode</th>
-            <th>Saisi par</th>
+            <th scope="col">Date</th>
+            <th scope="col">Description</th>
+            <th scope="col">Catégorie</th>
+            <th scope="col">Type</th>
+            <th scope="col" className="num">Montant</th>
+            <th scope="col">Mode</th>
+            <th scope="col">Saisi par</th>
           </tr>
         </thead>
         <tbody>
@@ -95,9 +105,9 @@ export default async function TransactionsPage({
               <td>{t.date}</td>
               <td>{t.description}</td>
               <td>{(t.categories as unknown as { libelle: string } | null)?.libelle}</td>
-              <td>{t.type}</td>
-              <td>{t.montant} FCFA</td>
-              <td>{t.mode_paiement}</td>
+              <td>{LIBELLES_TYPE[t.type] ?? t.type}</td>
+              <td className="num">{formaterMontant(t.montant)}</td>
+              <td>{LIBELLES_MODE[t.mode_paiement] ?? t.mode_paiement}</td>
               <td>{(t.utilisateurs as unknown as { nom: string } | null)?.nom}</td>
             </tr>
           ))}

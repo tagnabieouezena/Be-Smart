@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { formaterMontant } from "@/lib/format";
 import { FormulaireSaisieTransaction } from "@/components/formulaire-saisie-transaction";
 
 export type LigneCreance = {
@@ -54,10 +55,8 @@ const LIBELLES_STATUT: Record<LigneCreance["statut"], string> = {
   en_retard: "En retard",
 };
 
-const formatMontant = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
-const montant = (v: number) => `${formatMontant.format(v)} FCFA`;
+const montant = formaterMontant;
 
-const cellule = { padding: "0.4rem 0.6rem", borderBottom: "1px solid #ddd", whiteSpace: "nowrap" as const };
 
 function aujourdhui() {
   return new Date().toISOString().slice(0, 10);
@@ -196,7 +195,7 @@ function FormulaireCreance({
         </select>
       </label>
       {depassement > 0 && (
-        <p style={{ color: "#8a6d00" }}>
+        <p className="texte-alerte">
           Cette facture dépasse de {montant(depassement)} le reste à facturer de la ligne : le surplus n&apos;est pas
           retiré d&apos;une autre ligne.
         </p>
@@ -205,7 +204,7 @@ function FormulaireCreance({
         Notes (optionnel)
         <input value={notes} onChange={(e) => setNotes(e.target.value)} />
       </label>
-      {erreur && <p style={{ color: "crimson" }}>{erreur}</p>}
+      {erreur && <p className="message-erreur">{erreur}</p>}
       <div style={{ display: "flex", gap: "0.5rem" }}>
         <button type="submit" disabled={enCours}>
           {enCours ? "Enregistrement..." : "Enregistrer"}
@@ -252,34 +251,34 @@ export function GestionCreances({
 
   return (
     <div>
-      {erreur && <p style={{ color: "crimson" }}>{erreur}</p>}
+      {erreur && <p className="message-erreur">{erreur}</p>}
 
       {creances.length === 0 ? (
         <p>Aucune créance.</p>
       ) : (
-        <div style={{ overflowX: "auto", maxWidth: "100%" }}>
-          <table style={{ borderCollapse: "collapse", minWidth: "900px" }}>
+        <div className="tableau-defilant">
+          <table style={{ minWidth: "900px" }}>
             <thead>
               <tr>
                 {["Client", "Montant dû", "Encaissé", "Reste dû", "Échéance", "Statut", "Jours de retard", "Ligne du budget"].map((t) => (
-                  <th key={t} style={{ ...cellule, textAlign: "left" }}>
+                  <th key={t} scope="col" className={["Montant dû", "Encaissé", "Reste dû", "Jours de retard"].includes(t) ? "num" : undefined}>
                     {t}
                   </th>
                 ))}
-                {estComptable && <th style={cellule}>Actions</th>}
+                {estComptable && <th scope="col">Actions</th>}
               </tr>
             </thead>
             <tbody>
               {creances.map((c) => (
                 <tr key={c.id}>
-                  <td style={cellule}>{c.client}</td>
-                  <td style={cellule}>{montant(c.montant_du)}</td>
-                  <td style={cellule}>{montant(c.montant_encaisse)}</td>
-                  <td style={cellule}>{montant(c.reste_du)}</td>
-                  <td style={cellule}>{c.echeance}</td>
-                  <td style={cellule}>
+                  <th scope="row" style={{ fontWeight: 400 }}>{c.client}</th>
+                  <td className="num">{montant(c.montant_du)}</td>
+                  <td className="num">{montant(c.montant_encaisse)}</td>
+                  <td className="num">{montant(c.reste_du)}</td>
+                  <td>{c.echeance}</td>
+                  <td>
                     {c.statut === "en_retard" ? (
-                      <strong style={{ color: "crimson", border: "1px solid crimson", padding: "0 0.3rem" }}>
+                      <strong className="badge-negatif">
                         <span aria-hidden="true">⚠ </span>
                         {LIBELLES_STATUT[c.statut]}
                       </strong>
@@ -287,8 +286,8 @@ export function GestionCreances({
                       LIBELLES_STATUT[c.statut]
                     )}
                   </td>
-                  <td style={cellule}>{c.jours_retard > 0 ? `${c.jours_retard} j` : "—"}</td>
-                  <td style={cellule}>
+                  <td className="num">{c.jours_retard > 0 ? `${c.jours_retard} j` : "—"}</td>
+                  <td>
                     {c.ligne_revenu_prevu_id && lignesLabels[c.ligne_revenu_prevu_id] ? (
                       <>
                         {libelleLigne(lignesLabels[c.ligne_revenu_prevu_id])}
@@ -299,7 +298,7 @@ export function GestionCreances({
                     )}
                   </td>
                   {estComptable && (
-                    <td style={cellule}>
+                    <td>
                       {c.reste_du > 0 && (
                         <button
                           type="button"

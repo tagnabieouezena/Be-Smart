@@ -42,7 +42,7 @@ export function BoutonCreerBudget({
       <button onClick={creer} disabled={enCours}>
         {enCours ? "Création..." : "Créer le budget de ce mois"}
       </button>
-      {erreur && <p style={{ color: "crimson" }}>{erreur}</p>}
+      {erreur && <p className="message-erreur">{erreur}</p>}
     </div>
   );
 }

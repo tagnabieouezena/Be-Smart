@@ -49,7 +49,7 @@ export default async function UtilisateursPage() {
   }
 
   return (
-    <main style={{ padding: "2rem", fontFamily: "system-ui, sans-serif" }}>
+    <main className="page">
       <h1>Utilisateurs de mon entreprise</h1>
       <ul>
         {utilisateurs?.map((u) => (

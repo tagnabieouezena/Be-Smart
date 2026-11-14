@@ -54,7 +54,7 @@ export default async function ParametragePage() {
     ]);
 
   return (
-    <main style={{ padding: "2rem", fontFamily: "system-ui, sans-serif" }}>
+    <main className="page">
       <h1>Paramétrage</h1>
 
       {entreprise && (

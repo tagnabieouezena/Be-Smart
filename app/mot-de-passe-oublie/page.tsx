@@ -23,7 +23,7 @@ export default function MotDePasseOubliePage() {
   }
 
   return (
-    <main style={{ padding: "2rem", maxWidth: 480, fontFamily: "system-ui, sans-serif" }}>
+    <main className="page page-etroite">
       <h1>Mot de passe oublié</h1>
       {envoye ? (
         <>

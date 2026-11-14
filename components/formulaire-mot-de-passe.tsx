@@ -49,7 +49,7 @@ export function FormulaireMotDePasse({ bouton }: { bouton: string }) {
         Confirmer le mot de passe
         <input required type="password" minLength={6} autoComplete="new-password" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} />
       </label>
-      {erreur && <p style={{ color: "crimson" }}>{erreur}</p>}
+      {erreur && <p className="message-erreur">{erreur}</p>}
       <button type="submit" disabled={enCours}>
         {enCours ? "Enregistrement..." : bouton}
       </button>

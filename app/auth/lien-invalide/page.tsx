@@ -35,7 +35,7 @@ export default async function LienInvalidePage({
   const message = (type && MESSAGES[type]) || PAR_DEFAUT;
 
   return (
-    <main style={{ padding: "2rem", maxWidth: 480, fontFamily: "system-ui, sans-serif" }}>
+    <main className="page page-etroite">
       <h1>{message.titre}</h1>
       <p role="alert">{message.texte}</p>
       {type === "signup-echec" ? (

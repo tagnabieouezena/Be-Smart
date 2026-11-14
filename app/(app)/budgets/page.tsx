@@ -6,6 +6,7 @@ import { BoutonCreerBudget } from "@/components/bouton-creer-budget";
 import { GestionLignesCharge } from "@/components/gestion-lignes-charge";
 import { GestionLignesRevenu } from "@/components/gestion-lignes-revenu";
 import { ActionsBudget } from "@/components/actions-budget";
+import { formaterMontant } from "@/lib/format";
 
 export default async function BudgetsPage({
   searchParams,
@@ -116,7 +117,7 @@ export default async function BudgetsPage({
   const categoriesVariables = categories.filter((c) => c.type === "variable");
 
   return (
-    <main style={{ padding: "2rem", fontFamily: "system-ui, sans-serif" }}>
+    <main className="page">
       <h1>Budget prévisionnel</h1>
       <SelecteurPeriode mois={mois} annee={annee} />
 
@@ -133,12 +134,26 @@ export default async function BudgetsPage({
           {totaux && (
             <section>
               <h2>Totaux</h2>
-              <ul>
-                <li>Charges fixes : {totaux.total_charges_fixes} FCFA</li>
-                <li>Charges variables : {totaux.total_charges_variables} FCFA</li>
-                <li>CA prévisionnel : {totaux.total_ca_previsionnel} FCFA</li>
-                <li>Résultat prévisionnel : {totaux.resultat_previsionnel} FCFA</li>
-              </ul>
+              <table>
+                <tbody>
+                  <tr>
+                    <th scope="row">Charges fixes</th>
+                    <td className="num">{formaterMontant(totaux.total_charges_fixes)}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Charges variables</th>
+                    <td className="num">{formaterMontant(totaux.total_charges_variables)}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">CA prévisionnel</th>
+                    <td className="num">{formaterMontant(totaux.total_ca_previsionnel)}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Résultat prévisionnel</th>
+                    <td className="num">{formaterMontant(totaux.resultat_previsionnel)}</td>
+                  </tr>
+                </tbody>
+              </table>
             </section>
           )}
 
@@ -177,7 +192,7 @@ export default async function BudgetsPage({
                 <ul>
                   {lignesCharge.map((l) => (
                     <li key={l.id}>
-                      {l.designation} — {l.montant} FCFA ({l.statut})
+                      {l.designation} — {formaterMontant(l.montant)} ({l.statut})
                     </li>
                   ))}
                 </ul>
@@ -187,7 +202,7 @@ export default async function BudgetsPage({
                 <ul>
                   {lignesRevenu.map((l) => (
                     <li key={l.id}>
-                      {l.source} — {l.montant_estime} FCFA ({l.statut})
+                      {l.source} — {formaterMontant(l.montant_estime)} ({l.statut})
                     </li>
                   ))}
                 </ul>

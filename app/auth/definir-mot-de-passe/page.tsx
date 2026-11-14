@@ -14,7 +14,7 @@ export default async function Page() {
   }
 
   return (
-    <main style={{ padding: "2rem", maxWidth: 480, fontFamily: "system-ui, sans-serif" }}>
+    <main className="page page-etroite">
       <h1>Choisir mon mot de passe</h1>
       <FormulaireMotDePasse bouton="Définir mon mot de passe" />
     </main>

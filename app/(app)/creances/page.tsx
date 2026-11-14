@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { exigerRole } from "@/lib/acces";
 import { createClient } from "@/lib/supabase/server";
+import { formaterMontant } from "@/lib/format";
 import { GestionCreances, type LigneCreance, type LigneDisponible, type LigneLabel } from "@/components/gestion-creances";
 
 type LigneBalance = { rubrique: "total" | "tranche" | "mois"; cle: string; montant: number };
@@ -36,15 +37,13 @@ const NOMS_MOIS = [
   "Décembre",
 ];
 
-const formatMontant = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
-const montant = (v: number) => `${formatMontant.format(v)} FCFA`;
+const montant = formaterMontant;
 
 function libelleMois(cle: string) {
   const [annee, mois] = cle.split("-");
   return `${NOMS_MOIS[Number(mois) - 1]} ${annee}`;
 }
 
-const cellule = { padding: "0.4rem 0.6rem", borderBottom: "1px solid #ddd", textAlign: "left" as const };
 
 export default async function CreancesPage({
   searchParams,
@@ -139,39 +138,39 @@ export default async function CreancesPage({
   const parMois = lignesBalance.filter((l) => l.rubrique === "mois");
 
   return (
-    <main style={{ padding: "2rem", fontFamily: "system-ui, sans-serif" }}>
+    <main className="page">
       <h1>Créances clients</h1>
 
-      <section aria-label="Synthèse" style={{ margin: "1rem 0" }}>
+      <section aria-label="Synthèse" style={{ margin: "var(--espace-4) 0" }}>
         <p>
           <strong>Total des créances en cours : {montant(totalEnCours)}</strong>
         </p>
 
-        <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap" }}>
-          <table style={{ borderCollapse: "collapse" }}>
-            <caption style={{ textAlign: "left", fontWeight: 600 }}>Balance âgée (reste dû)</caption>
+        <div style={{ display: "flex", gap: "var(--espace-8)", flexWrap: "wrap" }}>
+          <table>
+            <caption style={{ textAlign: "left", fontWeight: 600, paddingBottom: "var(--espace-2)" }}>Balance âgée (reste dû)</caption>
             <tbody>
               {tranches.map((t) => (
                 <tr key={t.cle}>
-                  <th style={cellule}>{LIBELLES_TRANCHE[t.cle] ?? t.cle}</th>
-                  <td style={cellule}>{montant(t.montant)}</td>
+                  <th scope="row">{LIBELLES_TRANCHE[t.cle] ?? t.cle}</th>
+                  <td className="num">{montant(t.montant)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
 
-          <table style={{ borderCollapse: "collapse" }}>
-            <caption style={{ textAlign: "left", fontWeight: 600 }}>Reste dû par mois d&apos;échéance</caption>
+          <table>
+            <caption style={{ textAlign: "left", fontWeight: 600, paddingBottom: "var(--espace-2)" }}>Reste dû par mois d&apos;échéance</caption>
             <tbody>
               {parMois.length === 0 && (
                 <tr>
-                  <td style={cellule}>Aucun reste dû</td>
+                  <td>Aucun reste dû</td>
                 </tr>
               )}
               {parMois.map((m) => (
                 <tr key={m.cle}>
-                  <th style={cellule}>{libelleMois(m.cle)}</th>
-                  <td style={cellule}>{montant(m.montant)}</td>
+                  <th scope="row">{libelleMois(m.cle)}</th>
+                  <td className="num">{montant(m.montant)}</td>
                 </tr>
               ))}
             </tbody>
@@ -179,7 +178,7 @@ export default async function CreancesPage({
         </div>
       </section>
 
-      <form method="get" style={{ display: "flex", gap: "0.5rem", alignItems: "center", margin: "1rem 0" }}>
+      <form method="get" className="barre-filtres">
         <label>
           Statut{" "}
           <select name="statut" defaultValue={statutFiltre ?? ""}>
@@ -195,7 +194,7 @@ export default async function CreancesPage({
       </form>
 
       {erreurSituation && (
-        <p style={{ color: "crimson" }}>Impossible de charger les créances : {erreurSituation.message}</p>
+        <p className="message-erreur">Impossible de charger les créances : {erreurSituation.message}</p>
       )}
 
       <GestionCreances
