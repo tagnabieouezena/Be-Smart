@@ -49,7 +49,7 @@ export function FormulaireInvitationComptable() {
           onChange={(e) => setEmail(e.target.value)}
         />
       </label>
-      {erreur && <p style={{ color: "crimson" }}>{erreur}</p>}
+      {erreur && <p className="message-erreur">{erreur}</p>}
       <button type="submit" disabled={enCours}>
         {enCours ? "Invitation en cours..." : "Inviter ce comptable"}
       </button>

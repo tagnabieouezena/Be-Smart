@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { formaterMontant } from "@/lib/format";
 
 type TypePeriode = "mensuel" | "trimestriel" | "annuel";
 
@@ -65,7 +66,7 @@ export function GestionObjectifs({
           <li key={o.id}>
             {o.type_periode} {o.annee}
             {o.mois ? ` — mois ${o.mois}` : ""}
-            {o.trimestre ? ` — T${o.trimestre}` : ""} : {o.montant_cible} FCFA
+            {o.trimestre ? ` — T${o.trimestre}` : ""} : {formaterMontant(o.montant_cible)}
           </li>
         ))}
       </ul>
@@ -127,7 +128,7 @@ export function GestionObjectifs({
             onChange={(e) => setMontantCible(e.target.value)}
           />
         </label>
-        {erreur && <p style={{ color: "crimson" }}>{erreur}</p>}
+        {erreur && <p className="message-erreur">{erreur}</p>}
         <button type="submit" disabled={enCours}>
           {enCours ? "Ajout..." : "Ajouter un objectif"}
         </button>

@@ -81,7 +81,7 @@ export function FormulaireSoldeCaisse({
           transactions de cette date et des dates antérieures ne s&apos;y ajoutent pas : elles sont déjà dans ce solde.
           L&apos;ordre dans lequel vous saisissez le solde et l&apos;historique n&apos;a aucune importance.
         </p>
-        {erreur && <p style={{ color: "var(--color-negatif)" }}>{erreur}</p>}
+        {erreur && <p className="message-erreur">{erreur}</p>}
         <button type="submit" disabled={enCours}>
           {enCours ? "Enregistrement..." : "Enregistrer"}
         </button>

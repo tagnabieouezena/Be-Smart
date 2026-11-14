@@ -55,7 +55,7 @@ export function FormulaireConnexion({ suite }: { suite: string | null }) {
         Mot de passe
         <input required type="password" value={motDePasse} onChange={(e) => setMotDePasse(e.target.value)} />
       </label>
-      {erreur && <p style={{ color: "crimson" }}>{erreur}</p>}
+      {erreur && <p className="message-erreur">{erreur}</p>}
       <button type="submit" disabled={enCours}>
         {enCours ? "Connexion..." : "Se connecter"}
       </button>

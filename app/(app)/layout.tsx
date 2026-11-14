@@ -8,8 +8,9 @@ const LIENS_CEO: LienNavigation[] = [
   { href: "/budgets", libelle: "Budget" },
   { href: "/transactions", libelle: "Transactions" },
   { href: "/creances", libelle: "Créances" },
-  { href: "/parametrage", libelle: "Paramétrage" },
-  { href: "/utilisateurs", libelle: "Utilisateurs" },
+  // Section secondaire : présentation seulement (filet + titre « Administration »).
+  { href: "/parametrage", libelle: "Paramétrage", section: "secondaire" },
+  { href: "/utilisateurs", libelle: "Utilisateurs", section: "secondaire" },
 ];
 
 const LIENS_COMPTABLE: LienNavigation[] = [
@@ -40,16 +41,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           : null;
 
   return (
-    <>
+    <div className="coquille">
       {contexte && contexte.role && liens && (
         <BarreNavigation
           liens={liens}
           entreprise={contexte.entrepriseNom}
           nom={contexte.nom}
+          email={contexte.user.email ?? null}
           roleLibelle={LIBELLES_ROLE[contexte.role]}
         />
       )}
-      {children}
-    </>
+      <div className="coquille-contenu">{children}</div>
+    </div>
   );
 }

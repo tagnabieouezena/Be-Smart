@@ -67,7 +67,7 @@ export default function InscriptionPage() {
 
   if (emailEnvoye) {
     return (
-      <main style={{ padding: "2rem", maxWidth: 480, fontFamily: "system-ui, sans-serif" }}>
+      <main className="page page-etroite">
         <h1>Vérifiez votre boîte e-mail</h1>
         <p role="status">
           Un e-mail de confirmation a été envoyé à <strong>{email}</strong>. Cliquez sur le lien qu&apos;il
@@ -82,7 +82,7 @@ export default function InscriptionPage() {
   }
 
   return (
-    <main style={{ padding: "2rem", maxWidth: 480, fontFamily: "system-ui, sans-serif" }}>
+    <main className="page page-etroite">
       <h1>Inscription — Be Smart Pilotage</h1>
       <form onSubmit={onSubmit} style={{ display: "grid", gap: "0.75rem" }}>
         <label>
@@ -120,7 +120,7 @@ export default function InscriptionPage() {
             onChange={(e) => setMotDePasse(e.target.value)}
           />
         </label>
-        {erreur && <p style={{ color: "crimson" }}>{erreur}</p>}
+        {erreur && <p className="message-erreur">{erreur}</p>}
         <button type="submit" disabled={enCours}>
           {enCours ? "Création en cours..." : "Créer mon entreprise"}
         </button>
